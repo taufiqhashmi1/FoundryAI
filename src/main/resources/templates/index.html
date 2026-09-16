@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+
+<head>
+    <meta charset="UTF-8">
+
+    <meta
+            name="viewport"
+            content="width=device-width, initial-scale=1.0"
+    >
+
+    <meta
+            name="description"
+            content="FoundryAI — AI Operating System for Startup Decision Intelligence"
+    >
+
+    <title>FoundryAI — Command Center</title>
+
+    <link rel="stylesheet" href="/css/app.css">
+</head>
+
+<body>
+
+<div class="app-shell">
+
+    <!-- Sidebar -->
+    <aside class="sidebar">
+
+        <div class="brand">
+            <div class="brand-mark">
+                F
+            </div>
+
+            <div>
+                <div class="brand-name">FoundryAI</div>
+                <div class="brand-subtitle">AI Operating System</div>
+            </div>
+        </div>
+
+        <nav class="navigation">
+
+            <a href="/" class="nav-item active">
+                <span class="nav-icon">⌂</span>
+                <span>Overview</span>
+            </a>
+
+            <a href="/requests/new" class="nav-item">
+                <span class="nav-icon">＋</span>
+                <span>New Request</span>
+            </a>
+
+        </nav>
+
+        <div class="sidebar-footer">
+            <div class="system-status">
+                <span class="status-dot success"></span>
+                <span>System Operational</span>
+            </div>
+        </div>
+
+    </aside>
+
+    <!-- Main -->
+    <main class="main-content">
+
+        <header class="topbar">
+
+            <div>
+                <div class="eyebrow">COMMAND CENTER</div>
+
+                <h1>Overview</h1>
+
+                <p class="page-description">
+                    Orchestrate AI-driven analysis across your startup.
+                </p>
+            </div>
+
+            <a
+                    href="/requests/new"
+                    class="button button-primary"
+            >
+                <span>＋</span>
+                New Request
+            </a>
+
+        </header>
+
+        <!-- Hero -->
+        <section class="hero-card">
+
+            <div class="hero-content">
+
+                <div class="eyebrow">FOUNDRYAI</div>
+
+                <h2>
+                    Turn business objectives into
+                    <span>structured decisions.</span>
+                </h2>
+
+                <p>
+                    FoundryAI coordinates specialized AI agents across
+                    finance, engineering, and infrastructure to analyze
+                    complex business objectives and produce an executive
+                    recommendation.
+                </p>
+
+                <a
+                        href="/requests/new"
+                        class="button button-primary"
+                >
+                    Start Analysis
+                    <span>→</span>
+                </a>
+
+            </div>
+
+            <div class="hero-architecture">
+
+                <div class="architecture-node architecture-ceo">
+                    <div class="node-label">CEO</div>
+                    <div class="node-description">Orchestrator</div>
+                </div>
+
+                <div class="architecture-line"></div>
+
+                <div class="architecture-specialists">
+
+                    <div class="architecture-node">
+                        <div class="node-label">CFO</div>
+                        <div class="node-description">Finance</div>
+                    </div>
+
+                    <div class="architecture-node">
+                        <div class="node-label">ENG</div>
+                        <div class="node-description">Engineering</div>
+                    </div>
+
+                    <div class="architecture-node">
+                        <div class="node-label">INFRA</div>
+                        <div class="node-description">Infrastructure</div>
+                    </div>
+
+                </div>
+
+            </div>
+
+        </section>
+
+        <!-- System Overview -->
+        <section class="section">
+
+            <div class="section-header">
+                <div>
+                    <div class="eyebrow">SYSTEM</div>
+                    <h2>Operating Model</h2>
+                </div>
+            </div>
+
+            <div class="info-grid">
+
+                <article class="info-card">
+
+                    <div class="info-card-number">01</div>
+
+                    <h3>Plan</h3>
+
+                    <p>
+                        The CEO agent interprets the business objective
+                        and creates a structured execution plan.
+                    </p>
+
+                </article>
+
+                <article class="info-card">
+
+                    <div class="info-card-number">02</div>
+
+                    <h3>Execute</h3>
+
+                    <p>
+                        The workflow engine dispatches tasks to the
+                        appropriate specialist agents.
+                    </p>
+
+                </article>
+
+                <article class="info-card">
+
+                    <div class="info-card-number">03</div>
+
+                    <h3>Synthesize</h3>
+
+                    <p>
+                        Specialist results are consolidated into an
+                        executive-level recommendation.
+                    </p>
+
+                </article>
+
+            </div>
+
+        </section>
+
+        <!-- Empty workflows -->
+        <section class="section">
+
+            <div class="section-header">
+
+                <div>
+                    <div class="eyebrow">WORKFLOWS</div>
+                    <h2>Recent Activity</h2>
+                </div>
+
+            </div>
+
+            <div class="empty-state">
+
+                <div class="empty-icon">◎</div>
+
+                <h3>No workflows yet</h3>
+
+                <p>
+                    Create your first business request to start
+                    a FoundryAI workflow.
+                </p>
+
+                <a
+                        href="/requests/new"
+                        class="button button-secondary"
+                >
+                    Create Request
+                </a>
+
+            </div>
+
+        </section>
+
+    </main>
+
+</div>
+
+<script src="/js/app.js"></script>
+
+</body>
+
+</html>

@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta
+            name="viewport"
+            content="width=device-width, initial-scale=1.0"
+    >
+
+    <meta
+            name="description"
+            content="FoundryAI workflow execution"
+    >
+
+    <title>Workflow — FoundryAI</title>
+
+    <link rel="stylesheet" href="/css/app.css">
+
+</head>
+
+<body>
+
+<div class="app-shell">
+
+    <!-- Sidebar -->
+    <aside class="sidebar">
+
+        <div class="brand">
+
+            <div class="brand-mark">
+                F
+            </div>
+
+            <div>
+                <div class="brand-name">FoundryAI</div>
+                <div class="brand-subtitle">
+                    AI Operating System
+                </div>
+            </div>
+
+        </div>
+
+        <nav class="navigation">
+
+            <a href="/" class="nav-item">
+                <span class="nav-icon">⌂</span>
+                <span>Overview</span>
+            </a>
+
+            <a href="/requests/new" class="nav-item">
+                <span class="nav-icon">＋</span>
+                <span>New Request</span>
+            </a>
+
+        </nav>
+
+        <div class="sidebar-footer">
+
+            <div class="system-status">
+                <span class="status-dot success"></span>
+                <span>System Operational</span>
+            </div>
+
+        </div>
+
+    </aside>
+
+    <!-- Main -->
+    <main class="main-content">
+
+        <!-- Loading -->
+        <section
+                id="workflowLoading"
+                class="workflow-loading"
+        >
+
+            <div class="loading-spinner"></div>
+
+            <h2>Loading workflow</h2>
+
+            <p>
+                Retrieving execution details...
+            </p>
+
+        </section>
+
+        <!-- Error -->
+        <section
+                id="workflowError"
+                class="empty-state hidden"
+        >
+
+            <div class="empty-icon error-icon">!</div>
+
+            <h2>Unable to load workflow</h2>
+
+            <p id="workflowErrorMessage">
+                The requested workflow could not be loaded.
+            </p>
+
+            <a
+                    href="/"
+                    class="button button-secondary"
+            >
+                Back to Dashboard
+            </a>
+
+        </section>
+
+        <!-- Workflow -->
+        <div
+                id="workflowContent"
+                class="hidden"
+        >
+
+            <header class="topbar workflow-topbar">
+
+                <div>
+
+                    <div class="eyebrow">
+                        WORKFLOW
+                    </div>
+
+                    <h1>Execution</h1>
+
+                    <p
+                            id="workflowId"
+                            class="workflow-id"
+                    ></p>
+
+                </div>
+
+                <div
+                        id="workflowStatus"
+                        class="status-badge"
+                >
+                    UNKNOWN
+                </div>
+
+            </header>
+
+            <!-- Objective -->
+            <section class="objective-card">
+
+                <div class="eyebrow">
+                    BUSINESS OBJECTIVE
+                </div>
+
+                <p id="workflowObjective">
+                    —
+                </p>
+
+            </section>
+
+            <!-- Execution -->
+            <section class="section">
+
+                <div class="section-header">
+
+                    <div>
+
+                        <div class="eyebrow">
+                            ORCHESTRATION
+                        </div>
+
+                        <h2>Workflow Execution</h2>
+
+                    </div>
+
+                </div>
+
+                <div class="workflow-visual">
+
+                    <div class="workflow-stage">
+
+                        <div class="workflow-node ceo-node">
+
+                            <div class="agent-symbol">
+                                CEO
+                            </div>
+
+                            <div>
+                                <strong>CEO</strong>
+                                <span>Planning</span>
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                    <div class="workflow-connector"></div>
+
+                    <div
+                            id="taskGrid"
+                            class="task-grid"
+                    ></div>
+
+                    <div class="workflow-connector"></div>
+
+                    <div class="workflow-stage">
+
+                        <div class="workflow-node synthesis-node">
+
+                            <div class="agent-symbol">
+                                CEO
+                            </div>
+
+                            <div>
+                                <strong>CEO</strong>
+                                <span>Synthesis</span>
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+            </section>
+
+            <!-- Recommendation -->
+            <section
+                    id="recommendationSection"
+                    class="section hidden"
+            >
+
+                <div class="section-header">
+
+                    <div>
+
+                        <div class="eyebrow">
+                            EXECUTIVE OUTPUT
+                        </div>
+
+                        <h2>CEO Recommendation</h2>
+
+                    </div>
+
+                </div>
+
+                <div class="recommendation-card">
+
+                    <div class="recommendation-main">
+
+                        <div class="eyebrow">
+                            RECOMMENDATION
+                        </div>
+
+                        <p
+                                id="recommendationText"
+                                class="recommendation-text"
+                        ></p>
+
+                    </div>
+
+                    <div
+                            id="findingsContainer"
+                            class="recommendation-section"
+                    >
+
+                        <h3>Key Findings</h3>
+
+                        <div
+                                id="keyFindings"
+                                class="findings-grid"
+                        ></div>
+
+                    </div>
+
+                    <div
+                            id="assumptionsSection"
+                            class="recommendation-section"
+                    >
+
+                        <h3>Assumptions</h3>
+
+                        <ul id="assumptions"></ul>
+
+                    </div>
+
+                    <div
+                            id="risksSection"
+                            class="recommendation-section"
+                    >
+
+                        <h3>Risks</h3>
+
+                        <ul id="risks"></ul>
+
+                    </div>
+
+                    <div
+                            id="nextStepsSection"
+                            class="recommendation-section"
+                    >
+
+                        <h3>Next Steps</h3>
+
+                        <ol id="nextSteps"></ol>
+
+                    </div>
+
+                </div>
+
+            </section>
+
+        </div>
+
+    </main>
+
+</div>
+
+<script src="/js/app.js"></script>
+<script src="/js/workflow.js"></script>
+
+</body>
+
+</html>
