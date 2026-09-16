@@ -12,9 +12,7 @@ The project is intentionally implemented as a **single Spring Boot application**
 
 ## Dashboard
 
-> **[SCREENSHOT — FoundryAI Dashboard]**
->
-> *Add dashboard screenshot here.*
+![alt text](image.png)
 
 The dashboard provides the primary entry point into FoundryAI, allowing users to create business requests and navigate through workflow executions.
 
@@ -22,9 +20,7 @@ The dashboard provides the primary entry point into FoundryAI, allowing users to
 
 ## Workflow Execution
 
-> **[SCREENSHOT — Workflow Execution View]**
->
-> *Add workflow execution screenshot here.*
+![alt text](image-1.png)
 
 The workflow view presents the execution of specialist tasks and the resulting CEO-level recommendation.
 
@@ -32,9 +28,8 @@ The workflow view presents the execution of specialist tasks and the resulting C
 
 ## Example Executive Recommendation
 
-> **[SCREENSHOT — CEO Recommendation / Results]**
->
-> *Add screenshot of the completed workflow and CEO recommendation here.*
+![alt text](image-2.png)
+![alt text](image-3.png)
 
 ---
 
