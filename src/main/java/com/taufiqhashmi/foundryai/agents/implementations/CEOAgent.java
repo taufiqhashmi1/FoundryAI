@@ -5,7 +5,9 @@ import com.taufiqhashmi.foundryai.agents.AgentResult;
 import com.taufiqhashmi.foundryai.agents.AgentResultStatus;
 import com.taufiqhashmi.foundryai.agents.AgentTask;
 import com.taufiqhashmi.foundryai.agents.AgentType;
+import com.taufiqhashmi.foundryai.agents.StructuredAgentResponse;
 import com.taufiqhashmi.foundryai.ai.AiModelGateway;
+
 import org.springframework.stereotype.Component;
 
 @Component
@@ -39,19 +41,30 @@ public class CEOAgent implements Agent {
         }
 
         try {
-            String output = aiModelGateway.generate(
-                    AgentType.CEO,
-                    task.getObjective()
-            );
 
-            if (output == null || output.isBlank()) {
-                return failure("Agent returned an empty output");
+            StructuredAgentResponse response =
+                    aiModelGateway.generateAgentResponse(
+                            AgentType.CEO,
+                            task.getObjective(),
+                            task.getContext()
+                    );
+
+            if (response == null ||
+                    response.getOutput() == null ||
+                    response.getOutput().isBlank()) {
+
+                return failure(
+                        "Agent returned an empty output"
+                );
             }
 
             return AgentResult.builder()
                     .agentType(AgentType.CEO)
                     .status(AgentResultStatus.SUCCESS)
-                    .output(output)
+                    .output(response.getOutput())
+                    .structuredData(response.getStructuredData())
+                    .assumptions(response.getAssumptions())
+                    .risks(response.getRisks())
                     .build();
 
         } catch (Exception exception) {
@@ -61,6 +74,7 @@ public class CEOAgent implements Agent {
     }
 
     private AgentResult failure(String error) {
+
         return AgentResult.builder()
                 .agentType(AgentType.CEO)
                 .status(AgentResultStatus.FAILURE)

@@ -1,6 +1,6 @@
 package com.taufiqhashmi.foundryai.agents;
 
-import com.taufiqhashmi.foundryai.ai.StructuredAiModelGateway;
+import com.taufiqhashmi.foundryai.ai.AiModelGateway;
 import com.taufiqhashmi.foundryai.workflows.ExecutionPlan;
 import com.taufiqhashmi.foundryai.workflows.ExecutionPlanBuilder;
 import com.taufiqhashmi.foundryai.workflows.PlannedTask;
@@ -22,7 +22,7 @@ import static org.mockito.Mockito.when;
 class CEOPlannerTest {
 
     @Mock
-    private StructuredAiModelGateway aiModelGateway;
+    private AiModelGateway aiModelGateway;
 
     @Mock
     private ExecutionPlanBuilder executionPlanBuilder;

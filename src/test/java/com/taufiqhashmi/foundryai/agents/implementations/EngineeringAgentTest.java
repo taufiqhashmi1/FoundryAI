@@ -4,11 +4,14 @@ import com.taufiqhashmi.foundryai.agents.AgentResult;
 import com.taufiqhashmi.foundryai.agents.AgentResultStatus;
 import com.taufiqhashmi.foundryai.agents.AgentTask;
 import com.taufiqhashmi.foundryai.agents.AgentType;
+import com.taufiqhashmi.foundryai.agents.StructuredAgentResponse;
 import com.taufiqhashmi.foundryai.ai.AiModelGateway;
+
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -22,10 +25,15 @@ class EngineeringAgentTest {
         AiModelGateway aiModelGateway =
                 mock(AiModelGateway.class);
 
-        when(aiModelGateway.generate(
+        when(aiModelGateway.generateAgentResponse(
                 eq(AgentType.ENGINEERING),
-                anyString()
-        )).thenReturn("");
+                anyString(),
+                any()
+        )).thenReturn(
+                StructuredAgentResponse.builder()
+                        .output("")
+                        .build()
+        );
 
         EngineeringAgent engineeringAgent =
                 new EngineeringAgent(aiModelGateway);
@@ -57,10 +65,15 @@ class EngineeringAgentTest {
         AiModelGateway aiModelGateway =
                 mock(AiModelGateway.class);
 
-        when(aiModelGateway.generate(
+        when(aiModelGateway.generateAgentResponse(
                 eq(AgentType.ENGINEERING),
-                anyString()
-        )).thenReturn(null);
+                anyString(),
+                any()
+        )).thenReturn(
+                StructuredAgentResponse.builder()
+                        .output(null)
+                        .build()
+        );
 
         EngineeringAgent engineeringAgent =
                 new EngineeringAgent(aiModelGateway);

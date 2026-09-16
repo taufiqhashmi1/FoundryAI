@@ -1,10 +1,10 @@
 # FoundryAI — Requirements
 
-> **Status:** Updated 2026-09-08
+> **Status:** Ground-truth update — 2026-09-16
 
-## 1. Purpose
+## 1. Product Objective
 
-The MVP proves the platform architecture with four agents:
+The MVP demonstrates a controlled agentic workflow with exactly four agent roles:
 
 ```text
 CEO
@@ -13,113 +13,127 @@ ENGINEERING
 INFRASTRUCTURE
 ```
 
-Security and Operations remain future scope.
+The MVP does not attempt to provide autonomous production operations, complete enterprise authorization, or a distributed worker platform.
 
 ## 2. Functional Requirements
 
-### FR-1 — User Requests
+### FR-1 — Business Requests
 
-The system shall eventually allow an authenticated user to submit a natural-language business objective.
+The application accepts a business objective through the request/application layer.
 
-The request receives a unique identifier and is persisted.
+A request is persisted with a unique identifier and lifecycle status.
 
 ### FR-2 — Structured Planning
 
-CEO planning shall produce structured specialist work containing:
+CEO planning produces specialist work containing:
 
-- task key,
-- responsible agent,
-- objective,
-- dependencies.
+```text
+taskKey
+agentType
+objective
+dependencies
+```
 
-Future fields may include assumptions, expected outputs, risk, and approval requirements.
+`ExecutionPlanBuilder` converts model-facing task keys into runtime UUIDs.
 
-### FR-3 — Agent Delegation
+### FR-3 — Workflow Delegation
 
-The orchestrator shall delegate through the workflow runtime.
+The CEO planner creates specialist tasks but does not execute concrete specialist agents directly.
 
-Agents must not directly invoke arbitrary concrete agents.
+Execution occurs through:
+
+```text
+WorkflowEngine
+→ WorkflowTaskDispatcher
+→ AgentRegistry
+→ Agent
+```
 
 ### FR-4 — Dependency Management
 
 The workflow runtime shall:
 
 - validate dependency references,
-- prevent execution before dependencies complete,
-- block dependents after prerequisite failure,
-- reject circular/no-progress plans.
+- execute only runnable tasks,
+- block tasks after dependency failure,
+- detect no-progress/circular execution conditions.
 
-This is implemented in the current runtime engine.
+These behaviors are implemented.
 
 ### FR-5 — Context Propagation
 
-Dependent agents shall receive relevant completed dependency results through `AgentTask.context`.
-
-Current representation:
+Dependent tasks receive dependency information through:
 
 ```text
-context.data["dependencyResults"]
+AgentTask.context.data["dependencyResults"]
 ```
+
+The current builder exposes each dependency as a `Map<String,Object>` containing selected result fields.
 
 ### FR-6 — CFO
 
-Eventually support:
+Current:
 
-- financial retrieval,
-- deterministic calculations,
-- forecasting,
-- expense analysis,
-- hiring simulation,
-- financial summaries.
+- financial reasoning,
+- financial recommendation,
+- deterministic financial calculator tool.
 
-Current tool:
+Future:
 
-```text
-financial-calculator
-```
+- real financial data retrieval,
+- forecasting integrations,
+- cash runway analysis,
+- richer simulations.
 
 ### FR-7 — Engineering
 
-Eventually support:
+Current:
 
-- repository analysis,
-- issue inspection,
-- feature decomposition,
-- estimation,
+- technical reasoning,
+- architecture/security analysis,
+- implementation planning.
+
+Future:
+
+- repository operations,
 - issue creation,
-- PR creation,
-- code review,
-- test execution.
-
-The agent runtime itself is implemented.
+- pull requests,
+- controlled code review and execution.
 
 ### FR-8 — Infrastructure
 
-Eventually support:
+Current:
 
-- architecture analysis,
-- resource estimation,
-- cloud-cost estimation,
-- Terraform generation/validation,
-- infrastructure PRs,
-- deployment inspection.
+- infrastructure reasoning,
+- deployment planning,
+- scalability/reliability analysis.
 
-The agent runtime itself is implemented.
+Future:
+
+- cloud APIs,
+- Terraform tooling,
+- deployment inspection,
+- controlled infrastructure execution.
 
 ### FR-9 — Tool Contracts
 
-Future tools shall define:
+Current tool capability is mediated through `ToolRegistry`.
 
-- name,
-- description,
-- input/output,
-- permissions,
-- action classification,
-- risk,
-- idempotency,
-- failure behavior.
+Future mature tools should additionally specify:
+
+```text
+permissions
+action classification
+risk
+idempotency
+timeout
+retry policy
+audit requirements
+```
 
 ### FR-10 — Action Classification
+
+Target categories:
 
 ```text
 READ
@@ -127,117 +141,81 @@ PROPOSE
 EXECUTE
 ```
 
-Material EXECUTE actions require policy authorization and, where configured, human approval.
+The classification is architectural guidance at present; there is no complete policy engine enforcing it.
 
 ### FR-11 — Human Approval
 
-Future consequential actions shall create approval records containing exact action parameters and decision metadata.
+Future consequential actions shall be eligible for human approval.
+
+No complete approval workflow is currently implemented.
 
 ### FR-12 — Authorization
 
-Authorization must be outside the LLM.
+Authorization must remain outside the LLM.
+
+The current MVP does not implement complete authentication/authorization.
 
 ### FR-13 — Auditability
 
-Future durable audit records shall cover requests, plans, agent invocations, tool calls, policy decisions, approvals, results, and failures.
+Future audit records should cover:
+
+```text
+requests
+plans
+agent executions
+tool invocations
+policy decisions
+approvals
+results
+failures
+```
+
+Durable audit persistence is not currently implemented.
 
 ### FR-14 — Workflow Durability
 
-Long-running workflows shall eventually survive:
+Current workflows use runtime execution plus persisted request/workflow/task/execution records.
 
-- application restart,
-- model failure,
-- tool failure,
-- approval waits,
-- external delays.
-
-The current workflow engine is in-memory; the JPA foundation exists but is not yet integrated into the runtime loop.
+The implementation is not yet a distributed durable workflow engine capable of transparently surviving every failure mode.
 
 ### FR-15 — API
 
-Future API shall support request creation/retrieval, workflow/task retrieval, plan retrieval, cancellation, approval operations, and audit retrieval.
+Current application endpoints expose request/workflow behavior.
+
+Future API expansion may add:
+
+```text
+plan retrieval
+workflow cancellation
+approval operations
+audit retrieval
+versioned endpoints
+```
 
 ### FR-16 — CEO Synthesis
 
-The platform shall aggregate specialist results and produce a final CEO-level recommendation.
+Implemented.
 
-This is the next orchestration capability.
+Specialist results are aggregated by `CEOSynthesizer`, which calls the CEO model through `AiModelGateway` and returns `CEORecommendationResponseDTO`.
 
 ## 3. Non-Functional Requirements
 
-### NFR-1 — Scalability
+The target system should preserve:
 
-Logical architecture must support later horizontal scaling.
+- clear layer boundaries,
+- deterministic application controls around LLM reasoning,
+- bounded workflow behavior,
+- explicit typed DTOs,
+- testability,
+- extensibility without adding direct agent-to-agent coupling.
 
-### NFR-2 — Reliability
+## 4. Explicit MVP Non-Goals
 
-Transient failures should eventually be retryable with bounded policy.
+The MVP does not:
 
-### NFR-3 — Security
-
-Secrets must not be embedded in prompts, source, ordinary logs, or persistent model context.
-
-### NFR-4 — Observability
-
-Eventually expose structured logs, correlation IDs, workflow IDs, execution IDs, latency, and failure metrics.
-
-### NFR-5 — Determinism
-
-Financial calculations, authorization, policy, and workflow state transitions should be deterministic.
-
-### NFR-6 — Extensibility
-
-Adding an agent must not require rewriting core orchestration.
-
-Adding a tool must not require changing unrelated agents.
-
-### NFR-7 — Cost Control
-
-Track model/token metadata where available and introduce workflow/agent budgets.
-
-### NFR-8 — Testability
-
-Agents and workflows must be independently testable.
-
-## 4. Current Acceptance
-
-Already demonstrated:
-
-```text
-CEO model execution
-CEO tool call
-CEO structured planning
-workflow dependency execution
-failure/blocking semantics
-context construction
-dependency result propagation
-```
-
-Next acceptance:
-
-```text
-business objective
- ↓
-CEO plan
- ↓
-workflow execution
- ↓
-specialist results
- ↓
-CEO synthesis
- ↓
-final outcome
-```
-
-## 5. Out of Scope
-
-- Security Agent implementation
-- Operations Agent implementation
-- real banking integrations
-- unrestricted cloud execution
-- autonomous production deployment
-- arbitrary user-created agent code
-- vector memory
-- distributed microservices
-- Kubernetes/Kafka/Redis
-- custom model training
+- autonomously run real company finances,
+- autonomously deploy production,
+- autonomously merge protected production code,
+- provide regulated financial advice,
+- implement unrestricted user-created agents,
+- operate as a general-purpose AGI platform.

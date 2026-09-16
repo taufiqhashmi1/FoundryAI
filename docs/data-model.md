@@ -1,10 +1,10 @@
 # FoundryAI — Data Model
 
-> **Status:** Updated 2026-09-08
+> **Status:** Ground-truth update — 2026-09-16
 
 ## 1. Current JPA Entities
 
-Exactly four:
+Exactly four JPA entities are currently defined:
 
 ```text
 Request
@@ -13,7 +13,7 @@ WorkflowTask
 AgentExecution
 ```
 
-Runtime/future concepts are not JPA entities:
+The following are runtime/application concepts, not JPA entities:
 
 ```text
 ExecutionPlan
@@ -22,12 +22,11 @@ Agent
 AgentTask
 AgentContext
 AgentResult
+StructuredAgentResponse
 Tool
-Approval
-AuditEvent
-User
-Organization
 ```
+
+Future concepts such as approval, audit event, user, and organization are not current JPA entities.
 
 ## 2. Database
 
@@ -36,31 +35,23 @@ MySQL
 database: foundryai
 ```
 
-Development:
+Development uses:
 
 ```properties
 spring.jpa.hibernate.ddl-auto=update
 ```
 
-Production direction:
-
-```text
-Flyway
-+
-ddl-auto=validate
-```
-
 Flyway is not currently used.
 
-## 3. Relationship
+## 3. Entity Relationships
 
 ```text
 Request
-  1:1
+  1 : 1
 Workflow
-  1:N
+  1 : N
 WorkflowTask
-  1:N
+  1 : N
 AgentExecution
 ```
 
@@ -101,10 +92,11 @@ Request request
 WorkflowStatus status
 Instant createdAt
 Instant updatedAt
+String recommendation
 List<WorkflowTask> tasks
 ```
 
-Current lifecycle:
+Lifecycle:
 
 ```text
 CREATED
@@ -114,18 +106,18 @@ FAILED
 CANCELLED
 ```
 
-Future statuses should only be added when actual workflow behavior needs them.
+The current workflow can persist the final CEO recommendation in the workflow record.
 
 ## 6. WorkflowTask
 
-Represents durable logical work.
+Represents durable logical work associated with a workflow.
 
-Conceptual fields:
+Current fields:
 
 ```text
 UUID id
 Workflow workflow
-AgentType agentType
+String agentType
 String objective
 TaskStatus status
 Integer executionOrder
@@ -135,42 +127,37 @@ String result
 String errorMessage
 ```
 
-Runtime dependencies are currently represented on `AgentTask`.
+The persisted `agentType` is currently represented as a string column.
 
-Persistent dependency modeling should be introduced when the runtime is integrated with durable workflow persistence.
+Runtime dependency UUIDs live on `AgentTask`; persistent dependency relationships are not separately modeled as a dedicated JPA dependency table.
 
 ## 7. AgentExecution
 
-Represents one actual execution attempt:
+Represents one durable execution attempt associated with a workflow task.
 
-```text
-WorkflowTask
-  ├── Attempt 1 → FAILED
-  ├── Attempt 2 → FAILED
-  └── Attempt 3 → COMPLETED
-```
-
-Conceptual fields:
+Current fields:
 
 ```text
 UUID id
 WorkflowTask workflowTask
-AgentType agentType
+String agentType
 Integer attempt
 AgentExecutionStatus status
 String input
 String output
-String errorMessage
 String model
+String errorMessage
 Instant startedAt
 Instant completedAt
 ```
+
+The current entity supports attempt numbering even though sophisticated retry policies are not yet implemented.
 
 ## 8. Runtime vs Persistence
 
 ```text
 WorkflowTask
-= durable logical work
+= durable logical task
 
 AgentTask
 = transient runtime instruction
@@ -179,9 +166,9 @@ AgentExecution
 = durable execution attempt
 ```
 
-## 9. ExecutionPlan
+## 9. Execution Plan
 
-Runtime only:
+`ExecutionPlan` is runtime-only:
 
 ```text
 ExecutionPlan
@@ -190,143 +177,44 @@ ExecutionPlan
   └── AgentTask
 ```
 
-Planning-time:
+`PlannedTask` is the model-facing planning representation:
 
 ```text
-PlannedTask
-  taskKey
-  agentType
-  objective
-  dependencies: List<String>
+taskKey
+agentType
+objective
+dependencies
 ```
 
-Runtime conversion:
+`ExecutionPlanBuilder` translates model-facing task keys into runtime UUIDs.
+
+## 10. DTO Representation
+
+REST clients do not receive JPA entities directly.
+
+Current DTOs include:
 
 ```text
-ExecutionPlanBuilder
- ↓
-AgentTask
- taskId: UUID
- dependencies: List<UUID>
+CreateRequestDTO
+RequestResponseDTO
+WorkflowResponseDTO
+WorkflowTaskResponseDTO
+CEORecommendationResponseDTO
+ErrorResponseDTO
+ValidationErrorResponseDTO
 ```
 
-## 10. Dependency Context
+## 11. Future Data Model
 
-`TaskContextBuilder` creates:
+When required, the system can add dedicated persistence for:
 
 ```text
-AgentContext.data["dependencyResults"]
+PolicyDecision
+Approval
+AuditEvent
+ToolExecution
+User / Organization
+Memory records
 ```
 
-Value:
-
-```text
-Map<UUID, AgentResult>
-```
-
-This is runtime data flow, not relational persistence.
-
-## 11. AgentResult
-
-Current:
-
-```text
-AgentType
-AgentResultStatus
-output
-error
-metadata
-```
-
-If exposed through REST, create a DTO.
-
-## 12. Future Approval Model
-
-Potential fields:
-
-```text
-workflowId
-taskId
-actionType
-actionPayload
-reason
-riskLevel
-status
-requestedBy
-approvedBy
-requestedAt
-expiresAt
-decidedAt
-decisionComment
-```
-
-Not current persistence.
-
-## 13. Future Audit Model
-
-Potential:
-
-```text
-workflowId
-taskId
-agentExecutionId
-toolExecutionId
-eventType
-actorType
-actorId
-metadata
-createdAt
-correlationId
-```
-
-## 14. Future Tool Execution
-
-Potential:
-
-```text
-workflowId
-taskId
-agentExecutionId
-toolId/name
-toolVersion
-status
-input metadata
-output metadata
-startedAt
-completedAt
-latency
-retry count
-error code
-```
-
-Do not automatically retain sensitive raw payloads.
-
-## 15. Transactions
-
-When external side effects are introduced:
-
-```text
-transaction
- ↓
-record/validate state
- ↓
-commit
- ↓
-external action
- ↓
-persist result
-```
-
-Never hold a long DB transaction while waiting for an external API.
-
-## 16. Concurrency
-
-Current runtime is sequential.
-
-When concurrent workflow updates arrive, consider optimistic locking/versioning.
-
-## 17. Multi-Tenancy
-
-The MVP does not implement a full tenant model.
-
-Do not add organization/user entities merely for architectural completeness.
+These are not present in the current MVP data model.

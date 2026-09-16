@@ -26,21 +26,15 @@ class WorkflowEngineContextIntegrationTest {
     @Test
     void shouldPassDependencyResultToDependentAgent() {
 
-        UUID financialTaskId =
-                UUID.randomUUID();
-
-        UUID engineeringTaskId =
-                UUID.randomUUID();
+        UUID financialTaskId = UUID.randomUUID();
+        UUID engineeringTaskId = UUID.randomUUID();
 
         // -------------------------------------------------
         // Arrange: mock agents
         // -------------------------------------------------
 
-        Agent cfoAgent =
-                mock(Agent.class);
-
-        Agent engineeringAgent =
-                mock(Agent.class);
+        Agent cfoAgent = mock(Agent.class);
+        Agent engineeringAgent = mock(Agent.class);
 
         when(cfoAgent.getType())
                 .thenReturn(AgentType.CFO);
@@ -56,14 +50,11 @@ class WorkflowEngineContextIntegrationTest {
                 AgentResult.builder()
                         .agentType(AgentType.CFO)
                         .status(AgentResultStatus.SUCCESS)
-                        .output(
-                                "Financial analysis complete"
-                        )
+                        .output("Financial analysis complete")
                         .build();
 
-        when(cfoAgent.execute(
-                any(AgentTask.class)
-        )).thenReturn(financialResult);
+        when(cfoAgent.execute(any(AgentTask.class)))
+                .thenReturn(financialResult);
 
         // -------------------------------------------------
         // Arrange: Engineering result
@@ -73,14 +64,11 @@ class WorkflowEngineContextIntegrationTest {
                 AgentResult.builder()
                         .agentType(AgentType.ENGINEERING)
                         .status(AgentResultStatus.SUCCESS)
-                        .output(
-                                "Engineering analysis complete"
-                        )
+                        .output("Engineering analysis complete")
                         .build();
 
-        when(engineeringAgent.execute(
-                any(AgentTask.class)
-        )).thenReturn(engineeringResult);
+        when(engineeringAgent.execute(any(AgentTask.class)))
+                .thenReturn(engineeringResult);
 
         // -------------------------------------------------
         // Arrange: workflow components
@@ -95,9 +83,7 @@ class WorkflowEngineContextIntegrationTest {
                 );
 
         WorkflowTaskDispatcher dispatcher =
-                new WorkflowTaskDispatcher(
-                        agentRegistry
-                );
+                new WorkflowTaskDispatcher(agentRegistry);
 
         TaskDependencyResolver dependencyResolver =
                 new TaskDependencyResolver();
@@ -120,23 +106,15 @@ class WorkflowEngineContextIntegrationTest {
                 AgentTask.builder()
                         .taskId(financialTaskId)
                         .agentType(AgentType.CFO)
-                        .objective(
-                                "Perform financial analysis."
-                        )
-                        .dependencies(
-                                List.of()
-                        )
+                        .objective("Perform financial analysis.")
+                        .dependencies(List.of())
                         .build();
 
         AgentTask engineeringTask =
                 AgentTask.builder()
                         .taskId(engineeringTaskId)
-                        .agentType(
-                                AgentType.ENGINEERING
-                        )
-                        .objective(
-                                "Use the financial analysis."
-                        )
+                        .agentType(AgentType.ENGINEERING)
+                        .objective("Use the financial analysis.")
                         .dependencies(
                                 List.of(financialTaskId)
                         )
@@ -169,9 +147,7 @@ class WorkflowEngineContextIntegrationTest {
 
         assertNotNull(result);
 
-        assertTrue(
-                result.isSuccessful()
-        );
+        assertTrue(result.isSuccessful());
 
         assertEquals(
                 WorkflowTaskStatus.SUCCESS,
@@ -190,9 +166,7 @@ class WorkflowEngineContextIntegrationTest {
         // -------------------------------------------------
 
         ArgumentCaptor<AgentTask> taskCaptor =
-                ArgumentCaptor.forClass(
-                        AgentTask.class
-                );
+                ArgumentCaptor.forClass(AgentTask.class);
 
         verify(engineeringAgent)
                 .execute(taskCaptor.capture());
@@ -200,9 +174,7 @@ class WorkflowEngineContextIntegrationTest {
         AgentTask executedEngineeringTask =
                 taskCaptor.getValue();
 
-        assertNotNull(
-                executedEngineeringTask
-        );
+        assertNotNull(executedEngineeringTask);
 
         assertNotNull(
                 executedEngineeringTask.getContext()
@@ -220,37 +192,44 @@ class WorkflowEngineContextIntegrationTest {
                         .getData()
                         .get("dependencyResults");
 
-        assertNotNull(
-                dependencyResults
+        assertNotNull(dependencyResults);
+
+        assertTrue(
+                dependencyResults instanceof Map<?, ?>
         );
 
         @SuppressWarnings("unchecked")
-        Map<UUID, AgentResult> dependencyResultMap =
-                (Map<UUID, AgentResult>)
-                        dependencyResults;
+        Map<UUID, Map<String, Object>> dependencyResultMap =
+                (Map<UUID, Map<String, Object>>) dependencyResults;
 
-        AgentResult receivedFinancialResult =
-                dependencyResultMap.get(
-                        financialTaskId
-                );
+        Map<String, Object> receivedFinancialResult =
+                dependencyResultMap.get(financialTaskId);
 
-        assertNotNull(
-                receivedFinancialResult
-        );
+        assertNotNull(receivedFinancialResult);
 
         assertEquals(
                 AgentType.CFO,
-                receivedFinancialResult.getAgentType()
-        );
-
-        assertEquals(
-                AgentResultStatus.SUCCESS,
-                receivedFinancialResult.getStatus()
+                receivedFinancialResult.get("agentType")
         );
 
         assertEquals(
                 "Financial analysis complete",
-                receivedFinancialResult.getOutput()
+                receivedFinancialResult.get("output")
+        );
+
+        assertEquals(
+                null,
+                receivedFinancialResult.get("structuredData")
+        );
+
+        assertEquals(
+                null,
+                receivedFinancialResult.get("assumptions")
+        );
+
+        assertEquals(
+                null,
+                receivedFinancialResult.get("risks")
         );
     }
 }

@@ -14,7 +14,6 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class TaskContextBuilderTest {
@@ -35,111 +34,168 @@ class TaskContextBuilderTest {
                 .agentType(AgentType.CFO)
                 .status(AgentResultStatus.SUCCESS)
                 .output("Financial analysis completed.")
+                .structuredData(Map.of(
+                        "revenue", 100000
+                ))
+                .assumptions(List.of("Stable demand"))
+                .risks(List.of("Market volatility"))
                 .build();
 
         AgentTask task = AgentTask.builder()
                 .taskId(UUID.randomUUID())
                 .agentType(AgentType.ENGINEERING)
-                .objective(
-                        "Use the financial analysis.")
-                .dependencies(
-                        List.of(dependencyId))
+                .objective("Use the financial analysis.")
+                .dependencies(List.of(dependencyId))
                 .build();
 
         AgentContext context = taskContextBuilder.build(
                 task,
-                Map.of(
-                        dependencyId,
-                        dependencyResult));
+                Map.of(dependencyId, dependencyResult)
+        );
 
         assertNotNull(context);
         assertNotNull(context.getData());
 
-        Object dependencyResults = context.getData()
-                .get("dependencyResults");
+        Object dependencyResults =
+                context.getData().get("dependencyResults");
 
         assertNotNull(dependencyResults);
+        assertTrue(dependencyResults instanceof Map<?, ?>);
 
         @SuppressWarnings("unchecked")
-        Map<UUID, AgentResult> results = (Map<UUID, AgentResult>) dependencyResults;
+        Map<UUID, Map<String, Object>> results =
+                (Map<UUID, Map<String, Object>>) dependencyResults;
+
+        Map<String, Object> resultData =
+                results.get(dependencyId);
+
+        assertNotNull(resultData);
 
         assertEquals(
-                dependencyResult,
-                results.get(dependencyId));
+                AgentType.CFO,
+                resultData.get("agentType")
+        );
+
+        assertEquals(
+                "Financial analysis completed.",
+                resultData.get("output")
+        );
+
+        assertEquals(
+                Map.of("revenue", 100000),
+                resultData.get("structuredData")
+        );
+
+        assertEquals(
+                List.of("Stable demand"),
+                resultData.get("assumptions")
+        );
+
+        assertEquals(
+                List.of("Market volatility"),
+                resultData.get("risks")
+        );
     }
 
     @Test
-    void shouldReturnEmptyContextWhenNoDependencies() {
+    void shouldReturnEmptyDependencyResultsWhenNoDependencies() {
 
         AgentTask task = AgentTask.builder()
                 .taskId(UUID.randomUUID())
                 .agentType(AgentType.CFO)
-                .objective(
-                        "Perform financial analysis.")
+                .objective("Perform financial analysis.")
                 .dependencies(List.of())
                 .build();
 
         AgentContext context = taskContextBuilder.build(
                 task,
-                Map.of());
+                Map.of()
+        );
 
         assertNotNull(context);
         assertNotNull(context.getData());
 
-        assertTrue(
-                context.getData().isEmpty());
+        Object dependencyResults =
+                context.getData().get("dependencyResults");
+
+        assertNotNull(dependencyResults);
+        assertTrue(dependencyResults instanceof Map<?, ?>);
+
+        @SuppressWarnings("unchecked")
+        Map<UUID, Object> results =
+                (Map<UUID, Object>) dependencyResults;
+
+        assertTrue(results.isEmpty());
     }
 
     @Test
-    void shouldRejectMissingDependencyResult() {
+    void shouldIgnoreMissingDependencyResult() {
 
         UUID dependencyId = UUID.randomUUID();
 
         AgentTask task = AgentTask.builder()
                 .taskId(UUID.randomUUID())
                 .agentType(AgentType.ENGINEERING)
-                .objective(
-                        "Use the financial analysis.")
-                .dependencies(
-                        List.of(dependencyId))
+                .objective("Use the financial analysis.")
+                .dependencies(List.of(dependencyId))
                 .build();
 
-        IllegalStateException exception = assertThrows(
-                IllegalStateException.class,
-                () -> taskContextBuilder.build(
-                        task,
-                        Map.of()));
+        AgentContext context = taskContextBuilder.build(
+                task,
+                Map.of()
+        );
 
-        assertTrue(
-                exception.getMessage()
-                        .contains(
-                                "No completed result found"));
+        assertNotNull(context);
+        assertNotNull(context.getData());
+
+        Object dependencyResults =
+                context.getData().get("dependencyResults");
+
+        assertNotNull(dependencyResults);
+        assertTrue(dependencyResults instanceof Map<?, ?>);
+
+        @SuppressWarnings("unchecked")
+        Map<UUID, Object> results =
+                (Map<UUID, Object>) dependencyResults;
+
+        assertTrue(results.isEmpty());
     }
 
     @Test
-    void shouldPreserveExistingContext() {
+    void shouldNotPreserveExistingContext() {
 
         AgentTask task = AgentTask.builder()
                 .taskId(UUID.randomUUID())
                 .agentType(AgentType.CFO)
-                .objective(
-                        "Analyze financial impact.")
+                .objective("Analyze financial impact.")
                 .context(
                         AgentContext.builder()
                                 .data(
                                         Map.of(
                                                 "requestId",
-                                                "REQ-123"))
-                                .build())
+                                                "REQ-123"
+                                        )
+                                )
+                                .build()
+                )
                 .build();
 
         AgentContext context = taskContextBuilder.build(
                 task,
-                Map.of());
+                Map.of()
+        );
 
-        assertEquals(
-                "REQ-123",
+        assertNotNull(context);
+        assertNotNull(context.getData());
+
+        assertTrue(
                 context.getData()
-                        .get("requestId"));
+                        .get("requestId") == null
+        );
+
+        assertNotNull(
+                context.getData()
+                        .get("dependencyResults")
+        );
     }
 }

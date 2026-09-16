@@ -19,14 +19,12 @@ import java.util.UUID;
 public class WorkflowResponseDTO {
 
     private UUID id;
-
     private UUID requestId;
-
     private WorkflowStatus status;
-
     private Instant createdAt;
-
     private Instant updatedAt;
+
+    private CEORecommendationResponseDTO recommendation;
 
     private List<WorkflowTaskResponseDTO> tasks;
 }

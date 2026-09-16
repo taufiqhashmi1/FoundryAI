@@ -1,123 +1,75 @@
 # FoundryAI — Security Architecture
 
-> **Status:** Updated 2026-09-08  
-> **Implementation:** Security architecture is defined; production authentication/authorization/policy enforcement are future work.
+> **Status:** Ground-truth update — 2026-09-16
+> **Implementation:** Security principles and boundaries are defined. Complete authentication, authorization, policy enforcement, and approvals remain future work.
 
-## 1. Security Goal
-
-FoundryAI must assume model output can be incorrect, manipulated, or malicious.
+## 1. Security Principle
 
 > **Never use the LLM as a security boundary.**
 
-Security decisions are deterministic application responsibilities.
+Model output can be wrong, manipulated, or malicious. Security decisions therefore belong to deterministic application code and future policy infrastructure.
 
-## 2. Defense in Depth
+## 2. Current Capability Boundary
 
-Future:
-
-```text
-Identity
- ↓
-API Authorization
- ↓
-Workflow Authorization
- ↓
-Agent Permissions
- ↓
-Tool Permissions
- ↓
-Policy
- ↓
-Approval
- ↓
-Execution
-```
-
-## 3. Current Capability Boundary
-
-Current tool capability selection:
+Current tool capability selection is:
 
 ```text
 AgentConfig
- ↓
+    ↓
 tool names
- ↓
+    ↓
 ToolRegistry
- ↓
+    ↓
 ToolCallback
+    ↓
+Tool
 ```
 
 This is not complete authorization.
 
-`ToolRegistry` must remain a registry, not a policy engine.
-
-## 4. Authentication
+## 3. Authentication
 
 Not implemented.
 
-Future authenticated context:
+Future authenticated context should be server-derived:
 
 ```text
 userId
 roles
-organization/tenant
+organization / tenant
 permissions
 ```
 
-Never trust these values from request JSON.
+These values must not be trusted from arbitrary request JSON.
 
-## 5. Authorization
+## 4. Authorization
 
-Future authorization must determine:
-
-```text
-Who is acting?
-What are they trying to do?
-Which agent is acting?
-Which resource is affected?
-Which environment is affected?
-Does approval apply?
-```
-
-Authorization is server-side.
-
-## 6. Agent Permissions
-
-Agents receive explicit capabilities.
-
-Example:
+Future authorization should determine:
 
 ```text
-CFO
- ├── financial READ
- ├── financial CALCULATE
- └── financial PROPOSE
-
-CFO
- └── production deployment DENIED
+who is acting?
+what action is requested?
+which agent is acting?
+which resource is affected?
+which environment is affected?
+does approval apply?
 ```
 
-CEO does not inherit every specialist capability.
+Authorization belongs on the server side.
 
-## 7. Tool Permissions
+## 5. Tool Permissions
 
-Future classifications:
+The current agent configuration provides allowed tool names, but there is no complete permission/policy subsystem.
+
+Target future classification:
 
 ```text
-getCashBalance
-→ READ / LOW
-
-createPullRequest
-→ PROPOSE / MEDIUM
-
-mergePullRequest
-→ EXECUTE / HIGH
-
-deployProduction
-→ EXECUTE / HIGH
+READ      → LOW
+PROPOSE   → MEDIUM
+EXECUTE   → HIGH
 ```
 
-## 8. Policy
+## 6. Policy
 
 Future decisions:
 
@@ -127,54 +79,47 @@ DENY
 APPROVAL_REQUIRED
 ```
 
-Conceptual chain:
+Potential inputs:
 
 ```text
-tool request
- ↓
-agent permission
- ↓
-user permission
- ↓
+agent
+action
 environment
- ↓
 risk
- ↓
+user permissions
+approval state
 security state
- ↓
-approval
 ```
 
-## 9. Human Approval
+## 7. Human Approval
 
-High-risk operations should require explicit approval:
+High-impact operations should eventually require explicit approval, such as:
 
-- protected production merge,
 - production deployment,
-- material budget modification,
-- material purchase,
+- protected-code merge,
+- material budget modifications,
+- material purchases,
 - destructive infrastructure changes.
 
-Approval must bind to exact action parameters.
+The current MVP does not autonomously execute these real-world actions.
 
-## 10. Secrets
+## 8. Secrets
 
 Secrets must never be:
 
 - embedded in prompts,
 - committed to source,
 - returned by the model,
-- written to ordinary logs,
-- stored in vector memory.
+- written to ordinary logs.
 
-The model must never receive raw provider tokens.
+Provider API keys are supplied through configuration/environment rather than model prompts.
 
-## 11. Prompt Injection
+## 9. Prompt Injection
 
-Treat external content as untrusted:
+External content must be treated as data, not trusted instructions:
 
 ```text
-repository content
+repositories
 issues
 documents
 vendor records
@@ -182,93 +127,20 @@ uploaded files
 web content
 ```
 
-Instructions contained in those sources are data, not authority.
+The model does not get to redefine application policy through external text.
 
-## 12. Data Isolation
+## 10. Database Security
 
-The MVP does not implement full multi-tenancy.
+Agents do not receive arbitrary SQL execution capability.
 
-Future tenant/resource isolation belongs at authorization and service/repository boundaries.
+Database operations remain in application code/repositories.
 
-## 13. Database Security
+## 11. Multi-Tenancy
 
-Agents must not execute arbitrary SQL.
+Full tenant isolation is not implemented in the MVP.
 
-They interact through application tools/services.
+Future tenant isolation belongs in authenticated service/repository boundaries and authorization policy.
 
-## 14. Code Execution
+## 12. Security Maturity Boundary
 
-If Engineering eventually executes code/tests:
-
-- isolate execution,
-- restrict filesystem,
-- restrict network,
-- enforce CPU/memory/time limits,
-- never expose production credentials,
-- destroy temporary environments.
-
-## 15. Infrastructure Security
-
-Preferred future flow:
-
-```text
-PLAN
- ↓
-VALIDATE
- ↓
-SECURITY REVIEW
- ↓
-PR
- ↓
-HUMAN APPROVAL
- ↓
-APPLY
-```
-
-Never let an LLM directly execute arbitrary production commands.
-
-## 16. Logging
-
-Useful metadata:
-
-```text
-correlationId
-workflowId
-taskId
-agent type
-toolExecutionId
-event type
-status
-latency
-```
-
-Do not log secrets, credentials, unnecessary personal data, sensitive financial records, or sensitive raw prompts.
-
-## 17. Threat Model
-
-```text
-T1 Prompt injection
-T2 Tool abuse
-T3 Agent loops
-T4 Credential leakage
-T5 Cross-tenant access
-T6 Unsafe production action
-T7 Malicious repository/document content
-```
-
-Mitigations include allowlists, policy, approvals, sandboxing, credential isolation, and bounded execution.
-
-## 18. Security Priority
-
-When implementation begins:
-
-1. authentication,
-2. authorization,
-3. agent/tool allowlists,
-4. policy,
-5. approval,
-6. secret handling,
-7. audit,
-8. sandboxing,
-9. prompt-injection controls,
-10. tenant/resource isolation.
+The current system should be described as an agentic application MVP with security-aware architectural boundaries, not as a production-grade autonomous security platform.

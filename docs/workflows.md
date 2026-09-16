@@ -1,69 +1,81 @@
 # FoundryAI — Workflow Architecture
 
-> **Status:** Updated 2026-09-08  
-> **Implementation:** Runtime workflow engine is implemented and tested. Durable application-service integration remains future work.
+> **Status:** Ground-truth update — 2026-09-16
+> **Implementation:** Workflow runtime and application-service integration are implemented; advanced durability/parallelism remain future work.
 
 ## 1. Purpose
 
 FoundryAI uses workflow-mediated multi-agent collaboration.
 
-Agents do not freely chat or control the application.
+Agents do not freely chat and do not control application state directly.
 
-## 2. Core Pattern
+## 2. Current Pattern
 
 ```text
 Business Objective
-  ↓
+      ↓
 CEOPlanner
-  ↓
+      ↓
 ExecutionPlan
-  ↓
+      ↓
 WorkflowEngine
-  ↓
-Agent Tasks
-  ↓
-Specialist Agents
-  ↓
-Agent Results
-  ↓
-CEO synthesis
-```
-
-Future controlled execution:
-
-```text
-Agent Result
- ↓
-Policy
- ↓
-Approval where required
- ↓
-Tool Execution
- ↓
-Audit
+      ↓
+AgentTask
+      ↓
+TaskContextBuilder
+      ↓
+WorkflowTaskDispatcher
+      ↓
+Specialist Agent
+      ↓
+AgentResult
+      ↓
+WorkflowService
+      ↓
+CEOSynthesizer
+      ↓
+CEORecommendationResponseDTO
 ```
 
 ## 3. Responsibility Model
 
-### Workflow owns state
+### Workflow
 
-The workflow runtime owns execution ordering, dependency semantics, task status, and result collection.
+Owns:
 
-### Agent owns reasoning
+- task eligibility,
+- ordering,
+- dependency semantics,
+- task status,
+- result collection.
 
-The agent decides how to reason about its assigned task.
+### Agent
 
-### Tool owns execution
+Owns:
 
-Tools perform deterministic application/external operations.
+- domain reasoning,
+- model interaction through `AiModelGateway`,
+- returning an `AgentResult`.
 
-### Policy owns authorization
+### Tool
 
-Future policy determines whether actions are allowed.
+Owns:
 
-### Human owns consequential decisions
+- deterministic application operations,
+- controlled external operations when implemented.
 
-Future approvals handle high-impact actions.
+### Service
+
+Owns:
+
+- request/workflow lifecycle,
+- persistence orchestration,
+- connecting durable records to runtime execution,
+- CEO synthesis at the application workflow level.
+
+### Policy / Human
+
+Future policy controls consequential actions; humans provide required approvals.
 
 ## 4. Current Components
 
@@ -81,13 +93,13 @@ WorkflowTaskStatus
 
 ## 5. Planning
 
-`PlannedTask` contains:
+`PlannedTask`:
 
 ```text
 taskKey
 agentType
 objective
-dependencies: List<String>
+dependencies : List<String>
 ```
 
 `ExecutionPlanBuilder` converts:
@@ -97,13 +109,11 @@ taskKey → UUID
 dependency taskKey → dependency UUID
 ```
 
-This keeps model-facing planning identifiers separate from runtime IDs.
+This separates model-facing planning identifiers from runtime IDs.
 
 ## 6. Dependency Semantics
 
-A task can run only when all dependencies complete successfully.
-
-Example:
+A task can run only when all dependencies have successfully completed.
 
 ```text
 CFO
@@ -119,49 +129,47 @@ They do not define how the agent reasons.
 
 ## 7. Context Semantics
 
-`TaskContextBuilder` answers:
+`TaskContextBuilder` creates a fresh `AgentContext`.
 
-> What information should this task receive?
-
-Current:
+Current structure:
 
 ```text
 AgentTask.context.data["dependencyResults"]
 ```
 
-contains:
+The current implementation stores dependency results as:
 
 ```text
-Map<UUID, AgentResult>
+Map<UUID, Map<String,Object>>
 ```
 
-Flow:
+where each nested result map contains:
 
 ```text
-dependency graph
-      ↓
-TaskDependencyResolver
-      ↓
-runnable task
-      ↓
-TaskContextBuilder
-      ↓
-dependency results
-      ↓
-AgentTask.context
+agentType
+output
+structuredData
+assumptions
+risks
 ```
+
+Important current behaviors:
+
+- if no dependencies exist, `dependencyResults` is still present as an empty map;
+- missing dependency results are silently omitted;
+- existing `AgentTask.context` is not preserved.
 
 ## 8. Dispatch
 
 ```text
 Runnable AgentTask
-  ↓
+       ↓
 WorkflowTaskDispatcher
-  ↓
+       ↓
 AgentRegistry.getAgent(agentType)
-  ↓
+       ↓
 Agent.execute(task)
-  ↓
+       ↓
 AgentResult
 ```
 
@@ -169,164 +177,129 @@ The engine does not depend directly on concrete agent classes.
 
 ## 9. Failure Semantics
 
-If a task fails:
+If a task returns a failure:
 
 ```text
-Task → FAILED
+task → FAILED
 dependent task → BLOCKED
 ```
 
-Unknown dependencies are invalid workflow definitions.
+Unknown dependencies are rejected.
 
-Circular/no-progress graphs are rejected.
+Circular/no-progress execution is rejected.
 
-Runtime dispatcher exceptions become failed `AgentResult` values.
+Dispatcher runtime exceptions are converted into `AgentResultStatus.FAILURE` rather than escaping as unhandled workflow failures.
 
 ## 10. Current Execution Model
 
-The engine is sequential.
+The engine executes sequentially.
 
-Independent tasks are recognized by the graph but are not yet executed concurrently.
+Independent tasks can be recognized as concurrently runnable, but the current implementation does not execute them concurrently.
 
-Parallel execution is deliberately deferred.
+Parallel execution is deferred.
 
-## 11. Parallelism — FUTURE
+## 11. CEO Synthesis
 
-Potential future model:
-
-```text
-          ┌── CFO ─────────┐
-CEO ──────┼── Engineering ├──→ synthesis
-          └── Infrastructure┘
-```
-
-Potential controls:
-
-```text
-maximum workflow tasks
-maximum tasks per agent type
-maximum concurrent model calls
-maximum tool operations
-```
-
-Never introduce unbounded parallel calls.
-
-## 12. CEO Synthesis
-
-Planning should produce specialist work only.
-
-After execution:
+After specialist execution:
 
 ```text
 CFO result
 Engineering result
 Infrastructure result
         ↓
-CEO synthesis
+CEOSynthesizer
         ↓
-Final recommendation
+AiModelGateway.synthesize(...)
+        ↓
+CEORecommendationResponseDTO
 ```
 
-Do not use CFO as a generic final synthesis agent.
+Final synthesis is a CEO responsibility, not an arbitrary specialist task.
 
-## 13. Re-planning
+## 12. Re-Planning
 
-Future bounded re-planning:
+Bounded re-planning is future work:
 
 ```text
 Initial plan
  ↓
 specialist result
  ↓
-material new information
+new material information
  ↓
 CEO re-plan
  ↓
-new ExecutionPlan
+new bounded ExecutionPlan
 ```
 
-Re-planning must be explicit and bounded.
+## 13. Tool Failure
 
-## 14. Tool Failure
+Sophisticated retry and failure classification are future work.
 
-Future classification:
+Current AI structured-output validation uses Spring AI's own schema-validation/self-correction mechanism.
+
+That is separate from:
 
 ```text
-timeout/provider outage/rate limit
-    → retry if safe
-
-invalid input/permission/business state
-    → task failure
-
-approval/security/destructive ambiguity
-    → pause for human
+network retry
+provider outage retry
+tool timeout retry
+business-state retry
 ```
 
-Retries must be bounded.
+which are not comprehensively implemented.
 
-## 15. Persistence
+## 14. Persistence Integration
 
-JPA foundation exists:
+The persistent hierarchy is:
 
 ```text
+Request
+ ↓
 Workflow
+ ↓
 WorkflowTask
-AgentExecution
-```
-
-Current runtime uses in-memory `ExecutionPlan` and `AgentTask` objects.
-
-Next integration:
-
-```text
-persisted Workflow
- ↓
-persisted WorkflowTask
- ↓
-runtime AgentTask
  ↓
 AgentExecution
+```
+
+Application services connect durable workflow records to runtime execution.
+
+The runtime itself still uses transient:
+
+```text
+ExecutionPlan
+AgentTask
+AgentContext
+AgentResult
+```
+
+## 15. Cancellation
+
+Cancellation API/workflow semantics are not a complete current capability. The target behavior is:
+
+```text
+mark cancelling
  ↓
-persist result/status
+prevent new work
+ ↓
+cancel cancellable work
+ ↓
+preserve history
+ ↓
+mark cancelled
 ```
 
-Do not hold long transactions open across external calls.
+External side effects cannot be assumed reversible.
 
-## 16. Cancellation
+## 16. Parallelism — Future
 
-Future:
-
-1. mark workflow cancelling,
-2. prevent new tasks,
-3. cancel cancellable work,
-4. preserve history,
-5. mark cancelled.
-
-Completed external side effects cannot be magically rolled back.
-
-## 17. Workflow Security
-
-Future workflow execution should inherit authenticated authorization context.
-
-Tool execution must re-check authorization because permissions can change after workflow creation.
-
-## 18. Primary MVP Workflow
-
-First reusable workflow shape:
+Potential future model:
 
 ```text
-Product Launch / Cross-functional Planning
+          ┌── CFO ─────────────┐
+CEO ──────┼── Engineering ────┼──→ synthesis
+          └── Infrastructure ──┘
 ```
 
-Future:
-
-```text
-Hiring Scenario
-Infrastructure Change
-```
-
-## 19. Core Rule
-
-> The workflow runtime is the controlled communication and state layer between agents.
-
-No unrestricted agent-to-agent loops.
+Future execution must remain bounded by workflow/task/model/tool limits.

@@ -1,20 +1,20 @@
 # FoundryAI — System Architecture
 
-> **Status:** Updated 2026-09-08  
-> **Current architecture:** Single Spring Boot application with hierarchical orchestration, structured planning, workflow-mediated execution, and deterministic tool callbacks.
+> **Status:** Ground-truth update — 2026-09-16
+> **Current architecture:** Single Spring Boot application with hierarchical orchestration, workflow-mediated execution, Groq-backed Spring AI integration, deterministic tools, persistence-backed workflow services, and REST endpoints.
 
 ## 1. Goal
 
-FoundryAI is a modular agentic platform, not a monolithic chatbot and not yet a distributed microservice platform.
+FoundryAI is an agentic application platform, not a monolithic chatbot and not a distributed microservice deployment.
 
-MVP deployment:
+Current deployment shape:
 
 ```text
 One Spring Boot application
-+
+        +
 MySQL
-+
-LLM provider
+        +
+Groq / Spring AI
 ```
 
 ## 2. Technology
@@ -24,10 +24,10 @@ Java 25
 Spring Boot 4.1.1
 Spring AI 2.0.1
 Maven
-MySQL
-JPA / Hibernate
+MySQL 8.0.40
+Hibernate ORM 7.4.5.Final
 Spring MVC
-Validation
+Jakarta Validation
 Actuator
 Groq
 ```
@@ -48,321 +48,177 @@ com.taufiqhashmi.foundryai
 └── workflows
 ```
 
-These plural package names are intentional.
+These plural package names are intentional and must be preserved.
 
-## 4. Current Logical Flow
-
-```text
-Business Objective
-       ↓
-CEOPlanner
-       ↓
-StructuredAiModelGateway
-       ↓
-PlannedTask[]
-       ↓
-ExecutionPlanBuilder
-       ↓
-ExecutionPlan
-       ↓
-WorkflowEngine
-       ↓
-TaskDependencyResolver
-       ↓
-TaskContextBuilder
-       ↓
-WorkflowTaskDispatcher
-       ↓
-AgentRegistry
-       ├── CFOAgent
-       ├── EngineeringAgent
-       └── InfrastructureAgent
-       ↓
-AgentResult
-```
-
-AI path:
+## 4. End-to-End Implemented Flow
 
 ```text
-Concrete Agent
- ↓
-AiModelGateway
- ↓
-ModelRouter
- ↓
-Spring AI
- ↓
-Groq
-```
-
-Tool path:
-
-```text
-AiModelGateway
- ↓
-ToolRegistry
- ↓
-ToolCallback
- ↓
-Tool implementation
-```
-
-## 5. Core Rule
-
-```text
-CEO decides WHAT.
-Workflow decides WHEN / WHETHER.
-Agent decides HOW.
-Tool decides HOW external/system action is performed.
-```
-
-The CEO must not directly depend on:
-
-```java
-cfoAgent.execute();
-engineeringAgent.execute();
-```
-
-## 6. Implementation Status
-
-Implemented:
-
-```text
-Agent runtime
-four concrete agents
-AI gateway
-model router
-structured planning gateway
-CEOPlanner
-execution plan builder
-tool registry
-financial calculator
-workflow engine
-dependency resolver
-task dispatcher
-context builder
-```
-
-Existing persistence foundation:
-
-```text
-Request
-Workflow
-WorkflowTask
-AgentExecution
-```
-
-Not yet connected end-to-end:
-
-```text
+Client
+  ↓
+RequestController
+  ↓
 RequestService
+  ↓
+Request / Workflow persistence
+  ↓
 WorkflowService
-REST
-JPA workflow persistence ↔ runtime engine
+  ↓
+CEOPlanner
+  ↓
+AiModelGateway
+  ↓
+Spring AI / Groq
+  ↓
+ExecutionPlan
+  ↓
+WorkflowEngine
+  ↓
+TaskDependencyResolver
+  ↓
+TaskContextBuilder
+  ↓
+WorkflowTaskDispatcher
+  ↓
+AgentRegistry
+  ├── CFOAgent
+  ├── EngineeringAgent
+  └── InfrastructureAgent
+  ↓
+AgentResult
+  ↓
+WorkflowService
+  ↓
+CEOSynthesizer
+  ↓
+AiModelGateway
+  ↓
+CEORecommendationResponseDTO
+  ↓
+Workflow persistence / response DTO
+  ↓
+Client
 ```
 
-Future:
+The CEO agent class also exists, but current workflow planning/synthesis uses `CEOPlanner` and `CEOSynthesizer` rather than dispatching a CEO `AgentTask` as the specialist work item.
+
+## 5. Core Responsibility Rule
 
 ```text
-CEO synthesis
-policy
-approval
-audit
-authentication
-parallelism
-retries/timeouts
-production integrations
-CoALA memory
+CEO       → WHAT
+Workflow  → WHEN / WHETHER
+Agent     → HOW
+Tool      → HOW a deterministic/external operation is performed
+Service   → application lifecycle + persistence orchestration
 ```
 
-## 7. Persistence vs Runtime
+The CEO does not directly call concrete specialist agents.
 
-JPA:
+## 6. Runtime vs Persistence
 
-```text
-Request
-Workflow
-WorkflowTask
-AgentExecution
-```
-
-Runtime:
+Runtime concepts:
 
 ```text
 Agent
 AgentTask
 AgentContext
 AgentResult
-PlannedTask
 ExecutionPlan
-CEOPlanner
-AgentRegistry
-AiModelGateway
-StructuredAiModelGateway
-ModelRouter
-ToolRegistry
+PlannedTask
 WorkflowEngine
+WorkflowResult
 ```
 
-Do not make every runtime concept a database entity.
+Persisted concepts:
 
-## 8. Workflow Semantics
+```text
+Request
+Workflow
+WorkflowTask
+AgentExecution
+```
 
-Current engine:
+The distinction is deliberate.
 
-- validates task IDs,
-- validates dependencies,
-- detects cycles/no-progress,
+## 7. Workflow Engine
+
+The current workflow engine:
+
+- validates the execution plan,
+- validates task IDs/dependencies,
 - finds runnable tasks,
-- blocks dependents after failure,
-- builds context,
-- dispatches agents,
-- collects results.
+- blocks tasks whose dependencies failed,
+- builds dependency context,
+- dispatches through `AgentRegistry`,
+- collects `AgentResult`,
+- converts dispatcher runtime exceptions to failed results,
+- detects cycles/no-progress conditions.
 
-Current execution is sequential.
+Execution is currently sequential.
 
-The dependency graph is intentionally designed for future parallel execution.
+## 8. Persistence Integration
 
-## 9. Context Propagation
+`RequestService` and `WorkflowService` connect application requests to persisted workflow records.
+
+Current persisted hierarchy:
 
 ```text
-CFO AgentResult
-      ↓
-TaskContextBuilder
-      ↓
-Engineering AgentTask.context
-      ↓
-Engineering Agent
+Request
+  1:1
+Workflow
+  1:N
+WorkflowTask
+  1:N
+AgentExecution
 ```
 
-Current key:
+The current implementation persists workflow/task/execution information while executing the request flow.
+
+## 9. AI Path
 
 ```text
-dependencyResults
-```
-
-Current value:
-
-```text
-Map<UUID, AgentResult>
-```
-
-## 10. CEO Synthesis
-
-Current planning ends at specialist tasks.
-
-Next:
-
-```text
-CFO result
-Engineering result
-Infrastructure result
-        ↓
-CEO synthesis
-        ↓
-Final business outcome
-```
-
-Do not delegate generic final synthesis to CFO.
-
-## 11. Tool Boundary
-
-Current:
-
-```text
-Agent
- ↓
+Concrete Agent / CEO planner / CEO synthesizer
+       ↓
 AiModelGateway
- ↓
+       ↓
+ModelRouter
+       ↓
+AgentConfig.AgentSettings
+       ↓
+ChatClient
+       ↓
+Groq
+```
+
+## 10. Tool Path
+
+```text
+AiModelGatewayImpl
+       ↓
+AgentSettings.tools
+       ↓
 ToolRegistry
- ↓
+       ↓
 ToolCallback
- ↓
-Tool implementation
+       ↓
+FinancialCalculatorTool
 ```
 
-Future:
+## 11. Security Boundary
 
-```text
-tool request
- ↓
-capability
- ↓
-policy
- ↓
-approval
- ↓
-external adapter
-```
+Authentication, authorization, policy decisions, human approvals, and durable audit infrastructure remain future capabilities.
 
-## 12. Security Boundary
+The current tool list is therefore a capability configuration mechanism, not a complete authorization system.
 
-Future:
+## 12. Scaling Boundary
 
-```text
-Authentication
- ↓
-User authorization
- ↓
-Workflow authorization
- ↓
-Agent permissions
- ↓
-Tool permissions
- ↓
-Policy
- ↓
-Approval
- ↓
-Execution
-```
+The MVP is not a distributed worker platform.
 
-The current MVP does not implement these enforcement layers.
+Future scaling can introduce:
 
-## 13. Scalability
+- asynchronous workers,
+- queue/event infrastructure,
+- bounded parallel execution,
+- tenant isolation,
+- stronger observability,
 
-Current:
-
-```text
-Single application
-```
-
-Future:
-
-```text
-API instances
-+
-workflow workers
-+
-agent workers
-+
-durable messaging
-+
-MySQL
-```
-
-Do not introduce distributed infrastructure before the core runtime is stable.
-
-## 14. Deployment
-
-Kubernetes, Kafka, Redis, and microservices remain deferred.
-
-## 15. Extensibility
-
-Adding an agent requires:
-
-1. implementation,
-2. `AgentType`,
-3. configuration,
-4. tools,
-5. tests.
-
-Adding a tool requires:
-
-1. implementation,
-2. registry registration,
-3. configuration,
-4. future policy classification,
-5. tests.
-
-Core orchestration should remain unchanged.
+without changing the core agent contract.

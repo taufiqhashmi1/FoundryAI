@@ -1,6 +1,6 @@
 package com.taufiqhashmi.foundryai.agents;
 
-import com.taufiqhashmi.foundryai.ai.StructuredAiModelGateway;
+import com.taufiqhashmi.foundryai.ai.AiModelGateway;
 import com.taufiqhashmi.foundryai.workflows.ExecutionPlan;
 import com.taufiqhashmi.foundryai.workflows.ExecutionPlanBuilder;
 import org.springframework.stereotype.Component;
@@ -8,11 +8,11 @@ import org.springframework.stereotype.Component;
 @Component
 public class CEOPlanner {
 
-    private final StructuredAiModelGateway aiModelGateway;
+    private final AiModelGateway aiModelGateway;
     private final ExecutionPlanBuilder executionPlanBuilder;
 
     public CEOPlanner(
-            StructuredAiModelGateway aiModelGateway,
+            AiModelGateway aiModelGateway,
             ExecutionPlanBuilder executionPlanBuilder
     ) {
         this.aiModelGateway = aiModelGateway;

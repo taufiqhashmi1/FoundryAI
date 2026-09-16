@@ -1,21 +1,22 @@
 # FoundryAI — Agent Architecture
 
-> **Status:** Updated 2026-09-08
+> **Status:** Ground-truth update — 2026-09-16
+> **Scope:** Current implemented MVP runtime, including planning, specialist execution, CEO synthesis, tool usage, and workflow context propagation.
 
 ## 1. Purpose
 
-Agents are specialized reasoning components operating within explicit application boundaries. An agent is not an unrestricted autonomous process.
+FoundryAI uses specialized agents as bounded reasoning components inside an application-controlled workflow. Agents do not directly orchestrate other agents and do not own persistence, authorization, workflow state, or external side effects.
 
-The MVP contains exactly four roles:
+The current MVP contains exactly four agent types:
 
 1. CEO / Orchestrator
 2. CFO
 3. Engineering
 4. Infrastructure
 
-Security, Operations, and other specialists remain future extensions.
+Security, Operations, and other specialists are not implemented.
 
-## 2. Core Contract
+## 2. Core Agent Contract
 
 ```java
 public interface Agent {
@@ -24,7 +25,22 @@ public interface Agent {
 }
 ```
 
-Current runtime objects:
+Runtime agent objects are application/runtime concepts. They are not JPA entities and are not REST DTOs.
+
+## 3. Agent Types
+
+```java
+public enum AgentType {
+    CEO,
+    CFO,
+    ENGINEERING,
+    INFRASTRUCTURE
+}
+```
+
+## 4. Runtime Objects
+
+The current runtime contains:
 
 ```text
 Agent
@@ -33,21 +49,87 @@ AgentTask
 AgentContext
 AgentResult
 AgentResultStatus
+StructuredAgentResponse
 AgentConfig
 AgentRegistry
 CEOPlanner
+CEOSynthesizer
 ```
 
-These are runtime/application concepts, not JPA entities or REST DTOs.
+### AgentTask
 
-## 3. Runtime Lifecycle
+`AgentTask` is the transient instruction passed through the workflow runtime.
+
+Conceptually:
+
+```text
+taskId
+agentType
+objective
+dependencies
+context
+```
+
+`dependencies` are workflow task UUIDs. The workflow engine resolves when those dependencies are runnable; the agent does not perform dependency orchestration.
+
+### AgentContext
+
+`AgentContext` is the runtime working context:
+
+```text
+Map<String, Object> data
+```
+
+The current workflow context uses:
+
+```text
+context.data["dependencyResults"]
+```
+
+where the value is a map keyed by dependency task UUID. Each dependency result is currently represented as a serializable map containing selected `AgentResult` fields:
+
+```text
+agentType
+output
+structuredData
+assumptions
+risks
+```
+
+The current `TaskContextBuilder` does not preserve an existing `AgentTask.context`; it builds a new `AgentContext`.
+
+### AgentResult
+
+`AgentResult` is the standardized result returned by an agent:
+
+```text
+agentType
+status
+output
+structuredData
+assumptions
+risks
+error
+metadata
+```
+
+`AgentResultStatus` is:
+
+```text
+SUCCESS
+FAILURE
+```
+
+## 5. Agent Lifecycle
 
 ```text
 WorkflowEngine
     ↓
 AgentTask
     ↓
-AgentContext
+TaskContextBuilder
+    ↓
+WorkflowTaskDispatcher
     ↓
 AgentRegistry
     ↓
@@ -57,207 +139,137 @@ AiModelGateway
     ↓
 ModelRouter
     ↓
-Spring AI / Groq
+Spring AI ChatClient
+    ↓
+Groq
+    ↓
+StructuredAgentResponse
     ↓
 AgentResult
     ↓
 WorkflowEngine
 ```
 
-Tool-enabled execution:
+The concrete agents are intentionally thin adapters. They validate the task, invoke `AiModelGateway`, convert the structured response into `AgentResult`, and return failure results when model execution fails.
 
-```text
-Agent
- ↓
-AiModelGateway
- ↓
-configured tool identifiers
- ↓
-ToolRegistry
- ↓
-ToolCallback
- ↓
-deterministic tool
- ↓
-model continuation
- ↓
-AgentResult
-```
+## 6. CEO / Orchestrator
 
-## 4. CEO / Orchestrator
+The CEO has two distinct responsibilities in the current implementation:
+
+### Planning
 
 `CEOPlanner` converts a business objective into a structured `ExecutionPlan`.
 
 ```text
 Business Objective
-       ↓
+      ↓
 CEOPlanner
-       ↓
-StructuredAiModelGateway
-       ↓
+      ↓
+AiModelGateway.generatePlan(...)
+      ↓
 PlannedTask[]
-       ↓
+      ↓
 ExecutionPlanBuilder
-       ↓
+      ↓
 ExecutionPlan
 ```
 
-The planner currently creates specialist tasks for CFO, Engineering, and Infrastructure.
+The planner creates specialist tasks only. It must not create a CEO task for final synthesis.
 
-The CEO must not directly call concrete specialist agents.
+### Final synthesis
 
-Core boundary:
-
-```text
-CEO decides WHAT.
-Workflow decides WHEN / WHETHER.
-Agent decides HOW.
-Tool decides HOW a system action is performed.
-```
-
-### Synthesis
-
-Final synthesis belongs to the CEO/orchestration layer. The planner should not manufacture a final CFO synthesis task merely because the model can represent one.
-
-Desired flow:
+`CEOSynthesizer` receives specialist `AgentResult` objects and calls the CEO-configured model through `AiModelGateway.synthesize(...)`.
 
 ```text
-specialist results
- ↓
-CEO synthesis
- ↓
-final business outcome
+specialist AgentResult map
+        ↓
+CEOSynthesizer
+        ↓
+AiModelGateway.synthesize(...)
+        ↓
+CEORecommendationResponseDTO
 ```
 
-## 5. CFO Agent
+The CEO therefore decides the business-level plan and produces the final recommendation, while the workflow engine controls execution.
 
-Responsible for financial analysis, cost/risk analysis, and financial implications.
-
-Authoritative arithmetic belongs to deterministic application code.
-
-Current implemented tool example:
+## 7. Responsibility Boundary
 
 ```text
-financial-calculator
+CEO      → WHAT work is needed and final synthesis
+Workflow → WHEN / WHETHER a task may run
+Agent    → HOW to reason about an assigned task
+Tool     → HOW a deterministic application operation is performed
 ```
 
-## 6. Engineering Agent
+The CEO does not call:
 
-Responsible for software architecture, technical feasibility, implementation planning, and future controlled repository operations.
+```java
+cfoAgent.execute(...)
+engineeringAgent.execute(...)
+```
+
+directly.
+
+## 8. CFO Agent
+
+Current responsibility:
+
+- financial reasoning,
+- cost/risk analysis,
+- financial implications,
+- structured financial findings.
+
+The current deterministic tool is `financial-calculator`.
+
+The LLM is not considered authoritative for arithmetic when deterministic application code can perform the calculation.
+
+## 9. Engineering Agent
+
+Current responsibility:
+
+- software/technical reasoning,
+- architecture analysis,
+- technical feasibility,
+- implementation/security planning.
 
 The current implementation is intentionally thin and provider-independent.
 
-## 7. Infrastructure Agent
+Repository mutation, pull-request creation, and other external engineering actions are not currently implemented.
 
-Responsible for infrastructure architecture, deployment planning, scalability, reliability, and cost analysis.
+## 10. Infrastructure Agent
 
-The current implementation is intentionally thin.
+Current responsibility:
 
-Production deployment and destructive infrastructure changes remain future policy/approval-controlled capabilities.
+- infrastructure reasoning,
+- deployment planning,
+- scalability/reliability analysis,
+- infrastructure cost analysis.
 
-## 8. Concrete Agents
+Production infrastructure mutation is not currently implemented.
 
-Exact classes:
-
-```text
-CEOAgent
-CFOAgent
-EngineeringAgent
-InfrastructureAgent
-```
-
-Concrete agents should not contain workflow orchestration, dependency resolution, provider routing, persistence orchestration, or future memory infrastructure.
-
-No abstract base agent is currently necessary.
-
-## 9. Agent-to-Agent Collaboration
-
-Agents do not freely chat.
+## 11. Concrete Agent Classes
 
 ```text
-Agent A
-  ↓
-AgentResult
-  ↓
-WorkflowEngine
-  ↓
-TaskContextBuilder
-  ↓
-AgentTask.context
-  ↓
-Agent B
+agents/implementations/
+├── CEOAgent.java
+├── CFOAgent.java
+├── EngineeringAgent.java
+└── InfrastructureAgent.java
 ```
 
-The current context propagation is tested.
+No abstract base agent is required in the current MVP.
 
-## 10. AgentContext
+## 12. Agent Registry
 
-Current:
+`AgentRegistry` builds an `EnumMap<AgentType, Agent>` from Spring-managed `Agent` implementations.
 
-```java
-public class AgentContext {
-    private Map<String, Object> data;
-}
-```
+It rejects duplicate registrations and fails when a requested agent type is missing.
 
-It is the current working-context extension point for future CoALA-compatible memory.
+This keeps `WorkflowTaskDispatcher` independent of concrete agent classes.
 
-Dependency results currently appear under:
+## 13. Agent Configuration
 
-```text
-dependencyResults
-```
-
-with value:
-
-```text
-Map<UUID, AgentResult>
-```
-
-This is appropriate for the workflow runtime. A future LLM-facing projection should convert this into readable/labeled context instead of exposing raw UUID maps directly.
-
-## 11. AgentResult
-
-Current:
-
-```java
-public class AgentResult {
-    private AgentType agentType;
-    private AgentResultStatus status;
-    private String output;
-    private String error;
-    private Map<String, Object> metadata;
-}
-```
-
-```java
-public enum AgentResultStatus {
-    SUCCESS,
-    FAILURE
-}
-```
-
-The previous boolean-success representation was replaced by an explicit status to reduce invalid state combinations.
-
-## 12. AgentConfig
-
-Configuration prefix:
-
-```text
-foundryai.agents
-```
-
-Per-agent settings:
-
-```text
-model
-systemPrompt
-temperature
-tools
-includeReasoning
-```
-
-Current logical agents:
+`AgentConfig` uses explicit properties:
 
 ```text
 ceo
@@ -266,53 +278,43 @@ engineering
 infrastructure
 ```
 
-Tool values are identifiers, not tool objects.
-
-`includeReasoning=false` is currently used for Groq GPT-OSS tool-call compatibility.
-
-## 13. AgentRegistry
-
-Maps:
+Each `AgentSettings` contains:
 
 ```text
-AgentType → Agent
+model
+systemPrompt
+temperature
+maxTokens
+tools
+includeReasoning
 ```
 
-It collects Spring-managed agents and rejects duplicate registrations.
+The explicit field structure is intentional; the earlier enum/map-based configuration approach was discarded because binding was unreliable in the current setup.
 
-Workflow code resolves agents through the registry rather than depending directly on concrete classes.
+## 14. Collaboration Model
 
-## 14. Failure Handling
+Agents do not freely chat.
 
-Current workflow behavior converts runtime dispatch failures into failed `AgentResult` values.
-
-Future production behavior should add bounded retries, timeouts, failure classification, and controlled re-planning.
-
-An agent must never hide a model/tool failure behind a fabricated successful result.
-
-## 15. Testing
-
-Verified:
-
-- real CEO model execution,
-- real CEO tool calling,
-- structured CEO planning,
-- workflow dependency behavior,
-- task-context construction,
-- dependency-result propagation into a dependent agent.
-
-The context integration test verifies:
+Current collaboration is:
 
 ```text
-CFO result
- ↓
+Agent A
+   ↓
+AgentResult
+   ↓
+WorkflowEngine
+   ↓
 TaskContextBuilder
- ↓
-Engineering AgentTask.context
- ↓
-Engineering receives CFO result
+   ↓
+Dependent AgentTask.context
+   ↓
+Agent B
 ```
 
-## 16. Fundamental Rule
+This makes dependencies explicit, testable, and bounded.
 
-> An agent may reason about an action, but the platform decides whether the action is permitted and how it is executed.
+## 15. Memory
+
+`AgentContext` is the extension point for working memory.
+
+CoALA-style semantic, episodic, procedural, and persistent memory infrastructure is not implemented. No vector database, embedding layer, memory repository, or memory-consolidation subsystem is part of the MVP.

@@ -1,26 +1,24 @@
 package com.taufiqhashmi.foundryai.agents;
 
-import com.taufiqhashmi.foundryai.ai.StructuredAiModelGateway;
+import com.taufiqhashmi.foundryai.ai.AiModelGateway;
+import com.taufiqhashmi.foundryai.dtos.CEORecommendationResponseDTO;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import java.util.Map;
 import java.util.UUID;
 
 @Component
+@RequiredArgsConstructor
 public class CEOSynthesizer {
 
-    private final StructuredAiModelGateway aiModelGateway;
+    private final AiModelGateway aiModelGateway;
 
-    public CEOSynthesizer(
-            StructuredAiModelGateway aiModelGateway
-    ) {
-        this.aiModelGateway = aiModelGateway;
-    }
-
-    public String synthesize(
+    public CEORecommendationResponseDTO synthesize(
             String businessObjective,
             Map<UUID, AgentResult> specialistResults
     ) {
+
         if (businessObjective == null ||
                 businessObjective.isBlank()) {
 

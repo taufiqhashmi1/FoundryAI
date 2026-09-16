@@ -1,54 +1,55 @@
 # FoundryAI — MVP Implementation Plan
 
-> **Status:** Updated 2026-09-08  
-> **Current phase:** Runtime and workflow execution foundation substantially implemented.
+> **Status:** Ground-truth update — 2026-09-16
 
 ## 1. Objective
 
-Build a scalable first version that proves the core agentic lifecycle without prematurely building enterprise-scale infrastructure.
+The MVP is intended to prove the complete core agentic workflow without prematurely introducing distributed infrastructure, persistent memory, broad enterprise integrations, or a complete policy engine.
 
-## 2. Current Core Flow
+## 2. Current Implemented Flow
 
 ```text
 Business Objective
-  ↓
+      ↓
 CEOPlanner
-  ↓
-Structured ExecutionPlan
-  ↓
+      ↓
+PlannedTask[]
+      ↓
+ExecutionPlanBuilder
+      ↓
+ExecutionPlan
+      ↓
 WorkflowEngine
-  ↓
+      ↓
+TaskDependencyResolver
+      ↓
+TaskContextBuilder
+      ↓
+WorkflowTaskDispatcher
+      ↓
 CFO / Engineering / Infrastructure
-  ↓
+      ↓
 AgentResult
-  ↓
-CEO synthesis
-```
-
-Tool path:
-
-```text
-Agent
- ↓
-AiModelGateway
- ↓
-ToolRegistry
- ↓
-Deterministic Tool
+      ↓
+CEOSynthesizer
+      ↓
+CEORecommendationResponseDTO
 ```
 
 ## 3. Phase Status
 
 ### Phase 1 — Foundation — COMPLETE
 
-- Spring Boot
-- Java 25
-- Maven
-- MySQL/JPA
-- four JPA entities
-- repositories
-- DTOs
-- exceptions
+```text
+Spring Boot
+Java 25
+Maven
+MySQL/JPA
+four JPA entities
+repositories
+DTOs
+exception handling
+```
 
 ### Phase 2 — Agent Runtime — COMPLETE
 
@@ -59,8 +60,10 @@ AgentTask
 AgentContext
 AgentResult
 AgentResultStatus
+StructuredAgentResponse
 AgentConfig
 AgentRegistry
+four concrete agents
 ```
 
 ### Phase 3 — AI Runtime — COMPLETE
@@ -69,40 +72,20 @@ AgentRegistry
 AiModelGateway
 AiModelGatewayImpl
 ModelRouter
-```
-
-Integrated:
-
-```text
 Spring AI 2.0.1
 Groq
 ```
 
-### Phase 4 — Concrete Agents — COMPLETE
+### Phase 4 — Structured Planning — COMPLETE
 
 ```text
-CEOAgent
-CFOAgent
-EngineeringAgent
-InfrastructureAgent
-```
-
-### Phase 5 — Structured CEO Planning — COMPLETE
-
-```text
-StructuredAiModelGateway
-StructuredAiModelGatewayImpl
 CEOPlanner
 PlannedTask
 ExecutionPlan
 ExecutionPlanBuilder
 ```
 
-Real-model structured planning is verified.
-
-### Phase 6 — Tool Runtime — PARTIAL / CURRENT MVP COMPLETE
-
-Implemented:
+### Phase 5 — Tool Runtime — COMPLETE FOR MVP
 
 ```text
 ToolRegistry
@@ -110,17 +93,7 @@ ToolConfiguration
 FinancialCalculatorTool
 ```
 
-Current tool:
-
-```text
-financial-calculator
-```
-
-Full authorization-aware tool execution is future work.
-
-### Phase 7 — Workflow Runtime — IMPLEMENTED
-
-Implemented:
+### Phase 6 — Workflow Runtime — COMPLETE
 
 ```text
 TaskDependencyResolver
@@ -133,170 +106,84 @@ WorkflowTaskStatus
 
 Current behavior:
 
-- validation,
-- dependency resolution,
-- blocking,
-- dispatch,
-- result collection,
-- context propagation,
-- cycle/no-progress detection,
-- runtime failure conversion.
-
-Current execution is sequential.
-
-JPA persistence is not yet integrated into this runtime loop.
-
-### Phase 8 — CEO Synthesis — NEXT
-
 ```text
-specialist results
- ↓
-CEO synthesis
- ↓
-final business outcome
+validation
+dependency resolution
+dependency blocking
+sequential dispatch
+context propagation
+result collection
+failure conversion
+cycle/no-progress detection
 ```
 
-The planner should not create final synthesis as a CFO task.
+### Phase 7 — CEO Synthesis — COMPLETE
 
-### Phase 9 — Application Services — NEXT
+Implemented:
 
-Implement:
+```text
+CEOSynthesizer
+CEORecommendationResponseDTO
+AiModelGateway.synthesize(...)
+Spring AI structured output + validateSchema()
+```
+
+### Phase 8 — Application Services — IMPLEMENTED
 
 ```text
 RequestService
 WorkflowService
 ```
 
-They should connect request/workflow persistence to the runtime without becoming God services.
+They connect the request/workflow lifecycle with persistence and the runtime execution flow.
 
-### Phase 10 — REST API — AFTER CORE ORCHESTRATION
-
-Implement:
+### Phase 9 — REST API — IMPLEMENTED FOR CURRENT MVP
 
 ```text
 RequestController
 WorkflowController
-ApprovalController
 ```
 
-Initial endpoints:
+`ApprovalController` exists as a future-facing component.
+
+A tested workflow execution request has returned a completed workflow and CEO recommendation through Postman.
+
+## 4. Current MVP Boundaries
+
+Not implemented:
 
 ```text
-POST /api/v1/requests
-GET /api/v1/requests/{id}
-GET /api/v1/workflows/{id}
-GET /api/v1/workflows/{id}/tasks
-POST /api/v1/workflows/{id}/cancel
+full authentication
+authorization engine
+policy engine
+human approval workflow
+audit event persistence
+parallel workflow execution
+distributed workers
+external production integrations
+persistent CoALA memory
 ```
 
-### Phase 11 — Governance / Approval — FUTURE
+## 5. Current Testing State
 
-```text
-ActionType
-RiskLevel
-Environment
-PolicyDecision
-PolicyEvaluator
-Approval
-```
+Core tests exist for:
 
-### Phase 12 — Audit / Observability — FUTURE
+- agents,
+- planner,
+- tools,
+- workflow engine,
+- task context,
+- CEO end-to-end behavior.
 
-Add durable lifecycle events after workflow/application boundaries stabilize.
+The latest supplied Maven run before test realignment reported 57 tests, with 10 failures and 1 error. Those failures were primarily test-contract mismatches around `TaskContextBuilder` and `WorkflowEngine`. The corresponding tests have since been updated; a fresh full-suite result is still pending.
 
-### Phase 13 — Evaluation — IN PROGRESS
+## 6. MVP Completion Criteria
 
-Implemented:
+For the current scope, the implementation should be considered operationally complete when:
 
-- agent integration tests,
-- tool integration test,
-- structured planner integration test,
-- workflow tests,
-- context builder tests,
-- context propagation integration test.
+1. the full Maven test suite passes after the latest test updates,
+2. the demonstrated Postman workflow remains successful,
+3. documentation matches the current source,
+4. no obsolete architecture abstractions remain.
 
-Next:
-
-- end-to-end product launch,
-- CEO synthesis,
-- retry/failure evaluation,
-- policy bypass,
-- prompt injection,
-- idempotency.
-
-### Phase 14 — CoALA Memory — DEFERRED
-
-Design for memory now, implement later.
-
-### Phase 15 — Production Hardening — FUTURE
-
-Later:
-
-- authentication,
-- authorization,
-- audit,
-- idempotency,
-- concurrency,
-- transactions,
-- Docker/Testcontainers,
-- Flyway,
-- production observability.
-
-## 4. Non-Goals
-
-Do not start with:
-
-- Kubernetes,
-- Kafka,
-- Redis,
-- microservices,
-- complex memory,
-- vector databases,
-- arbitrary user-created agents,
-- autonomous production deployment,
-- complex event sourcing,
-- custom model training.
-
-## 5. Current Runtime Milestone
-
-```text
-business objective
- ↓
-CEO structured plan
- ↓
-ExecutionPlan
- ↓
-WorkflowEngine
- ↓
-CFO / Engineering / Infrastructure
- ↓
-dependency-aware context
- ↓
-AgentResults
-```
-
-The broader application MVP additionally requires:
-
-```text
-CEO synthesis
-+
-RequestService
-+
-WorkflowService
-+
-REST
-```
-
-## 6. Recommended Next Order
-
-```text
-1. CEO synthesis
-2. RequestService / WorkflowService
-3. runtime ↔ persistence integration
-4. end-to-end orchestration test
-5. REST API
-6. retries/timeouts
-7. governance/approval
-8. audit/observability
-9. evaluation expansion
-10. production hardening
+After those checks, feature growth should move to a separately defined Phase 2.

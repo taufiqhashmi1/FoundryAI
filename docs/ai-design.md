@@ -1,26 +1,41 @@
 # FoundryAI — AI Design
 
-> **Status:** Updated 2026-09-08  
-> **Implementation:** AI gateway, model routing, structured planning, and Groq integration are implemented.
+> **Status:** Ground-truth update — 2026-09-16
+> **Implementation:** Spring AI gateway, agent-specific model routing, structured planning, structured specialist responses, CEO synthesis, and schema-validated structured output are implemented.
 
 ## 1. Purpose
 
-FoundryAI uses LLMs for interpretation, planning, reasoning, delegation, tool selection, synthesis, and recommendations.
+FoundryAI uses LLMs for:
 
-The LLM is not authoritative for authorization, financial arithmetic, policy, persistence, workflow state, security controls, or external side effects.
+- interpretation,
+- planning,
+- domain reasoning,
+- recommendations,
+- structured specialist responses,
+- final CEO synthesis,
+- tool selection/calling where configured.
+
+The LLM is not the authoritative component for:
+
+- authorization,
+- workflow state,
+- persistence,
+- deterministic arithmetic,
+- policy enforcement,
+- security controls,
+- external side effects.
 
 ```text
 LLM / Agent
-  ↓
-reason / plan / select
-  ↓
+    ↓
+interpret / plan / reason / recommend
+    ↓
 Application
-  ├── validate
-  ├── authorize
-  ├── calculate
-  ├── persist
-  ├── enforce policy
-  └── execute tools
+    ├── validate
+    ├── persist
+    ├── enforce policy
+    ├── calculate
+    └── execute tools
 ```
 
 ## 2. Current Stack
@@ -30,9 +45,13 @@ Java 25
 Spring Boot 4.1.1
 Spring AI 2.0.1
 Maven
+MySQL 8.0.40
+Hibernate ORM 7.4.5.Final
 Groq
 Spring AI OpenAI-compatible integration
 ```
+
+Current development configuration uses the Groq API through Spring AI's OpenAI-compatible integration:
 
 ```properties
 spring.ai.openai.api-key=${GROQ_API_KEY}
@@ -41,25 +60,27 @@ spring.ai.openai.chat.options.model=${GROQ_MODEL}
 spring.ai.openai.chat.options.temperature=0.2
 ```
 
-Agent-specific model configuration remains supported.
+Agent-specific model settings are additionally resolved through `AgentConfig`.
 
-## 3. Implemented AI Abstraction
+## 3. AI Abstraction
+
+Current implemented path:
 
 ```text
-Agent
-  ↓
-AgentConfig
-  ↓
+Concrete Agent
+      ↓
 AiModelGateway
-  ↓
+      ↓
 ModelRouter
-  ↓
+      ↓
+AgentSettings
+      ↓
 Spring AI ChatClient
-  ↓
+      ↓
 Groq
 ```
 
-Implemented:
+Implemented AI classes:
 
 ```text
 AiModelGateway
@@ -67,45 +88,57 @@ AiModelGatewayImpl
 ModelRouter
 ```
 
-`ModelRouter` is the single component responsible for `AgentType → AgentSettings` mapping.
+There is no separate `StructuredAiModelGateway` in the current implementation. The earlier `StructuredAiModelGateway` abstraction was consolidated into `AiModelGateway`.
 
-## 4. Structured Planning
+## 4. Current AiModelGateway Contract
 
-Implemented:
-
-```text
-StructuredAiModelGateway
-StructuredAiModelGatewayImpl
-CEOPlanner
-PlannedTask
-ExecutionPlan
-ExecutionPlanBuilder
-```
-
-Contract:
+The gateway currently exposes three structured application operations:
 
 ```java
 List<PlannedTask> generatePlan(
-    AgentType agentType,
-    String userPrompt
+        AgentType agentType,
+        String userPrompt
+);
+
+StructuredAgentResponse generateAgentResponse(
+        AgentType agentType,
+        String userPrompt,
+        AgentContext context
+);
+
+CEORecommendationResponseDTO synthesize(
+        AgentType agentType,
+        String businessObjective,
+        Map<UUID, AgentResult> specialistResults
 );
 ```
 
-Flow:
+The gateway hides Spring AI and provider-specific details from the rest of the application.
+
+## 5. Model Routing
+
+`ModelRouter` is the single component responsible for:
 
 ```text
-CEOPlanner
- ↓
-StructuredAiModelGateway
- ↓
-PlannedTask[]
- ↓
-ExecutionPlanBuilder
- ↓
-ExecutionPlan
+AgentType → AgentConfig.AgentSettings
 ```
 
-`PlannedTask` contains:
+It supports:
+
+```text
+CEO
+CFO
+ENGINEERING
+INFRASTRUCTURE
+```
+
+It validates that a model and system prompt are configured before returning settings.
+
+## 6. Structured Planning
+
+The CEO planner asks the model for a list of `PlannedTask` objects.
+
+Each planned task contains:
 
 ```text
 taskKey
@@ -114,214 +147,145 @@ objective
 dependencies
 ```
 
-Dependencies are model-friendly task keys and become UUID references at runtime.
-
-## 5. CEO Planning Boundary
-
-The planner creates specialist execution work.
-
-It does not execute tasks.
-
-Canonical flow:
+The model uses human-readable task keys. `ExecutionPlanBuilder` later converts those keys and dependency keys into UUID-based runtime tasks.
 
 ```text
-CEO
- ↓
-specialist plan
- ↓
-WorkflowEngine
- ↓
-specialist results
- ↓
-CEO synthesis
+Business Objective
+       ↓
+AiModelGateway.generatePlan(...)
+       ↓
+List<PlannedTask>
+       ↓
+ExecutionPlanBuilder
+       ↓
+ExecutionPlan
 ```
 
-Final synthesis should not be assigned to CFO as an incidental planning artifact.
+`ExecutionPlanBuilder` rejects:
 
-## 6. Tool Calling
+- empty plans,
+- duplicate task keys,
+- invalid task keys,
+- blank objectives,
+- missing agent types,
+- CEO specialist workflow tasks,
+- unknown dependency keys.
 
-Implemented path:
+## 7. Structured Agent Responses
+
+Specialist agents receive:
+
+```text
+business task
++
+serialized AgentContext
+```
+
+and request a structured response:
+
+```text
+output
+structuredData
+assumptions
+risks
+```
+
+The result is represented internally by `StructuredAgentResponse`, which is an agent-runtime object rather than a REST DTO.
+
+## 8. Spring AI Structured Output
+
+The current implementation does not manually parse raw model JSON into domain/DTO objects.
+
+The gateway uses:
+
+```java
+.call()
+.entity(
+    SomeResponseClass.class,
+    spec -> spec.validateSchema()
+)
+```
+
+for structured model responses.
+
+This is used for:
+
+- `StructuredAgentResponse`,
+- `List<PlannedTask>`,
+- `CEORecommendationResponseDTO`.
+
+`validateSchema()` delegates structured-output validation/self-correction to Spring AI rather than introducing a custom response validator or retry service.
+
+The application still retains `ObjectMapper` in `AiModelGatewayImpl` because it is used for serializing `AgentContext` data before it is supplied to the model.
+
+## 9. CEO Synthesis
+
+CEO synthesis receives specialist results formatted by the gateway and asks the CEO model for:
+
+```text
+recommendation
+keyFindings
+assumptions
+risks
+nextSteps
+```
+
+The result is directly converted into:
+
+```text
+CEORecommendationResponseDTO
+```
+
+The grounding prompt explicitly tells the model not to invent unsupported facts and to preserve uncertainty from specialist results.
+
+## 10. Tool Calling
+
+Current path:
 
 ```text
 Agent
- ↓
+  ↓
 AiModelGatewayImpl
- ↓
+  ↓
 AgentSettings.tools
- ↓
+  ↓
 ToolRegistry
- ↓
+  ↓
 ToolCallback
- ↓
+  ↓
 Spring AI
- ↓
+  ↓
 Tool implementation
- ↓
+  ↓
 Model continuation
 ```
 
-The model never receives arbitrary internal-service access.
+`ToolRegistry` resolves tool names into registered Spring AI `ToolCallback` objects.
 
-## 7. Tool Selection
+It is a registry only; it is not an authorization engine.
 
-Agent configuration contains declarative tool names.
+## 11. Structured Output Failure Handling
 
-```text
-AgentConfig
- ↓
-allowed tool names
- ↓
-ToolRegistry
- ↓
-ToolCallback
-```
-
-No separate `AgentToolResolver` is required for the current design.
-
-`ToolRegistry` is a registry, not an authorization engine.
-
-## 8. Groq GPT-OSS Compatibility
-
-The gateway supports the Groq-compatible extra body:
-
-```java
-options.extraBody(
-    Map.of(
-        "include_reasoning",
-        settings.getIncludeReasoning()
-    )
-);
-```
-
-Current agent configuration uses:
-
-```properties
-foundryai.agents.<agent>.include-reasoning=false
-```
-
-This addresses the GPT-OSS `reasoning_content` tool-call compatibility issue encountered during integration testing.
-
-## 9. Structured Outputs
-
-Current structured planning converts model output into:
+The current design intentionally separates concerns:
 
 ```text
-List<PlannedTask>
+DTO
+  → represents validated data shape
+
+Spring AI
+  → structured conversion + schema validation/self-correction
+
+AiModelGateway
+  → application-facing AI abstraction
+
+GlobalExceptionHandler
+  → HTTP error translation
 ```
 
-`AgentResult` remains intentionally small.
+No custom `AiResponseValidator`, `AiRetryHandler`, or DTO-owned retry mechanism is implemented.
 
-Future richer artifacts may contain:
+## 12. Current Provider Boundary
 
-```text
-summary
-assumptions
-evidence
-metrics
-findings
-recommendations
-proposedActions
-risks
-confidence
-```
+The provider is currently Groq through Spring AI's OpenAI-compatible integration.
 
-Do not introduce a large result hierarchy until concrete runtime requirements justify it.
-
-## 10. Context Engineering
-
-`TaskContextBuilder` currently combines existing task context and dependency results.
-
-Dependency results are stored as:
-
-```text
-context.data["dependencyResults"]
-```
-
-with:
-
-```text
-Map<UUID, AgentResult>
-```
-
-Future LLM-facing context should project only relevant information.
-
-## 11. CoALA and Memory
-
-CoALA is an architectural framework, not a dependency.
-
-Relevant categories:
-
-```text
-Working
-Episodic
-Semantic
-Procedural
-```
-
-Current decision:
-
-> Design for memory now; implement memory later.
-
-Do not add:
-
-```text
-memory/
-vector DB
-embeddings
-memory repositories
-memory consolidator
-```
-
-yet.
-
-## 12. RAG
-
-RAG is future infrastructure.
-
-Good candidates include architecture documents, company policies, procedures, security standards, and product documentation.
-
-RAG must not become authoritative for current financial balances, transactions, workflow state, authorization, or approvals.
-
-## 13. Reasoning Artifacts
-
-Do not expose private chain-of-thought.
-
-Prefer:
-
-```text
-summary
-assumptions
-evidence
-findings
-recommendations
-risks
-proposedActions
-confidence
-```
-
-## 14. Hallucination Controls
-
-Use:
-
-1. deterministic tools,
-2. structured outputs,
-3. schema validation,
-4. evidence where available,
-5. policy checks,
-6. evaluation tests,
-7. human approval for high-impact actions.
-
-## 15. Future AI Capabilities
-
-Potential extensions:
-
-- bounded parallel agent execution,
-- model fallback,
-- evaluation pipelines,
-- semantic caching,
-- retrieval,
-- multimodal inputs,
-- specialized reasoning models,
-- event-driven workers.
-
-These must extend the existing boundaries rather than replace them.
+Provider-level structured-output support is not treated as an independent architectural requirement; the current implementation relies on Spring AI's `.entity(...validateSchema())` path.

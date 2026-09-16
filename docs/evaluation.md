@@ -1,276 +1,174 @@
 # FoundryAI — Evaluation Strategy
 
-> **Status:** Updated 2026-09-08  
-> **Current status:** Foundational unit/integration evaluation is implemented; full evaluation harness remains future work.
+> **Status:** Ground-truth update — 2026-09-16
+> **Current status:** Unit/integration evaluation exists for the core runtime and tools; final full-suite verification after the latest test alignment is still pending.
 
 ## 1. Purpose
 
-Evaluation determines whether the agentic system is reliable, not merely fluent.
+Evaluation verifies that FoundryAI is behaving correctly, not merely producing plausible language.
 
-Evaluate:
+Current focus:
 
+- agent contracts,
 - planning,
-- delegation,
-- dependency correctness,
-- tool selection,
-- tool arguments,
-- factual grounding,
-- workflow behavior,
+- structured outputs,
+- dependency ordering,
 - failure propagation,
-- authorization,
-- safety,
-- approvals,
-- recovery,
-- cost,
-- latency.
+- context propagation,
+- tool behavior,
+- workflow engine behavior,
+- request/workflow integration.
 
-## 2. Current Evaluation Layers
+Future evaluation will cover policy, authorization, approvals, auditability, production integrations, and resilience.
+
+## 2. Current Test Layers
 
 ```text
-Unit Tests                 ← implemented
-Tool Tests                 ← implemented for calculator
-Agent Integration Tests   ← implemented
-Workflow Unit Tests       ← implemented
-Context Tests             ← implemented
-Structured Planning Test  ← implemented
-Policy/Security Tests     ← future
-End-to-End Request Flow   ← future
-Production Evaluation     ← future
+Unit tests                         implemented
+Tool tests                         implemented
+Agent tests                        implemented
+Planner integration tests         implemented
+CEO end-to-end integration        implemented
+Workflow unit tests                implemented
+Context tests                      implemented
+REST/Postman smoke validation      manually demonstrated
+Policy/security evaluation         future
+Production evaluation               future
 ```
 
-## 3. Verified Coverage
+## 3. Verified Functionality
 
-### CEO execution
+### CEO end-to-end
 
-Real-model CEO execution is tested.
+A real-model CEO workflow test has executed successfully.
 
-### CEO tool calling
+It demonstrated:
 
-The `financial-calculator` integration test verifies:
+```text
+business objective
+    ↓
+CEO structured plan
+    ↓
+specialist workflow execution
+    ↓
+specialist results
+    ↓
+CEO synthesis
+```
+
+### Structured output
+
+The CEO end-to-end log showed a malformed specialist response being detected by Spring AI's `StructuredOutputValidationAdvisor`, followed by a successful structured workflow completion. The current design therefore relies on Spring AI structured output validation rather than manual JSON parsing.
+
+### Tool
+
+`FinancialCalculatorTool` has dedicated tests and integration coverage.
+
+Example:
 
 ```text
 monthlyCost = 1250.50
 months = 12
-result = 15006.00
-```
-
-The test also verifies actual invocation using a Spring-managed `@MockitoSpyBean`.
-
-### CEO structured planning
-
-Real Groq structured planning has been verified through `CEOPlannerIntegrationTest`.
-
-### Workflow engine
-
-The workflow suite covers:
-
-- independent tasks,
-- duplicate task IDs,
-- circular dependencies,
-- failed dependencies,
-- null plans,
-- dispatcher exceptions,
-- transitive blocking,
-- result collection,
-- failed task recording,
-- unknown dependencies,
-- dependency ordering,
-- missing task IDs,
-- empty plans.
-
-### TaskContextBuilder
-
-Coverage includes:
-
-- dependency result construction,
-- no dependencies,
-- missing dependency result,
-- preservation of existing context.
-
-### Context propagation
-
-Verified:
-
-```text
-CFO AgentResult
- ↓
-TaskContextBuilder
- ↓
-Engineering AgentTask.context
- ↓
-Engineering receives CFO result
-```
-
-## 4. Deterministic Tool Evaluation
-
-Current example:
-
-```text
-monthly cost = 1250.50
-months = 12
 expected = 15006.00
 ```
 
-The LLM is not the arithmetic authority.
+The tool uses `BigDecimal` and validates invalid inputs.
 
-## 5. CEO Evaluation
+### Workflow engine
 
-Evaluate:
+The test suite covers:
 
-- specialist selection,
-- task completeness,
-- unique task keys,
-- dependency correctness,
-- structured output validity,
-- absence of unnecessary synthesis delegation,
-- final synthesis quality.
+- independent tasks,
+- dependency ordering,
+- duplicate task IDs,
+- circular dependencies,
+- failed dependencies,
+- transitive blocking,
+- dispatcher exceptions,
+- result collection,
+- unknown dependencies,
+- null plans,
+- empty plans,
+- missing task IDs.
 
-## 6. Workflow Evaluation
+### Context builder
 
-Expected semantics:
-
-```text
-dependency satisfied → task runs
-dependency failed → dependent task blocked
-unknown dependency → plan rejected
-cycle → plan rejected
-dispatch failure → task failure
-```
-
-Also verify dependency-result context propagation.
-
-## 7. Golden Scenarios
-
-### Product Launch
+The current test contract reflects the implementation:
 
 ```text
-CEO
- ├── CFO
- ├── Engineering
- └── Infrastructure
+dependency result
+    ↓
+Map<String,Object>
+    ↓
+context.data["dependencyResults"]
 ```
 
-### Hiring
+The current implementation does not preserve an existing `AgentTask.context` when building a new context and silently omits missing dependency results.
+
+## 4. Failure Semantics
+
+Expected workflow semantics:
 
 ```text
-CEO
- ↓
-CFO
- ↓
-financial recommendation
+dependency successful → dependent task may run
+dependency failed     → dependent task BLOCKED
+unknown dependency    → invalid plan
+cycle/no progress     → execution rejected
+dispatcher exception  → FAILED AgentResult
 ```
 
-### Unsafe Production Deployment
+## 5. Most Recent Full Maven Run
+
+The supplied full Maven run reported:
 
 ```text
-Policy
- ↓
-APPROVAL_REQUIRED
+Tests run: 57
+Failures: 10
+Errors: 1
 ```
 
-### Tool Failure
+Failures were concentrated in:
 
 ```text
-failure
- ↓
-classification
- ↓
-bounded retry or task failure
+TaskContextBuilderTest
+WorkflowEngineTest
+WorkflowEngineContextIntegrationTest
 ```
 
-### Prompt Injection
+The root issue was primarily mismatch between the then-current tests and `TaskContextBuilder` behavior, plus an uninitialized `TaskContextBuilder` in part of `WorkflowEngineTest`.
 
-External content is untrusted data.
+The tests have since been updated to match the current implementation contract. A fresh full `mvn test` after those edits has not yet been captured.
 
-### Duplicate Execution
+## 6. Manual API Validation
 
-Unknown external outcomes must be reconciled before retry.
-
-## 8. Metrics
-
-Reliability:
+A Postman request against the local application successfully returned a completed workflow containing:
 
 ```text
-workflow success rate
-task success rate
-tool success rate
-retry rate
-failure recovery rate
+status = COMPLETED
+CFO task = COMPLETED
+ENGINEERING task = COMPLETED
+INFRASTRUCTURE task = COMPLETED
+CEO recommendation = populated
 ```
 
-Quality:
+This validates the application path end-to-end at the HTTP level for the tested scenario.
+
+## 7. Future Evaluation
+
+Future additions should cover:
 
 ```text
-plan completeness
-delegation accuracy
-dependency accuracy
-tool selection accuracy
-tool argument accuracy
-structured output validity
+authorization
+policy decisions
+human approvals
+tenant isolation
+audit integrity
+timeout handling
+provider outages
+rate limiting
+tool failure classification
+idempotent side effects
+parallel execution
+cost/latency budgets
+production integrations
 ```
-
-Safety:
-
-```text
-unauthorized action rate
-approval bypass rate
-secret leakage rate
-prompt injection success rate
-cross-tenant access rate
-```
-
-Performance:
-
-```text
-workflow latency
-agent latency
-tool latency
-model latency
-```
-
-Cost:
-
-```text
-tokens/workflow
-model cost/workflow
-tool/provider cost
-```
-
-## 9. Targets
-
-Engineering targets, not achieved measurements:
-
-```text
-structured output validity > 99%
-unauthorized execution = 0%
-approval bypass = 0%
-critical secret leakage = 0%
-core workflow completion > 95%
-tool argument correctness > 98%
-```
-
-## 10. Regression
-
-Changes to:
-
-- prompts,
-- models,
-- agent tools,
-- workflow semantics,
-- dependency resolution,
-- context construction
-
-should trigger relevant tests.
-
-Prompt changes are behavior changes.
-
-## 11. Next Priority
-
-1. CEO synthesis tests
-2. product-launch end-to-end workflow
-3. failure/retry tests
-4. policy/approval tests
-5. prompt-injection tests
-6. idempotency tests
-7. model/prompt regression
-8. performance/cost evaluation

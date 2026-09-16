@@ -1,6 +1,6 @@
 # FoundryAI — Project Progress & Ground-Truth Handoff
 
-> **Canonical project state as of 2026-09-08.**
+> **Canonical project state as of 2026-09-16**
 
 ## 1. Project
 
@@ -14,7 +14,9 @@ com.taufiqhashmi.foundryai
 
 Goal:
 
-> Build a minimal, scalable, extensible agentic-AI MVP rather than prematurely building a distributed multi-agent platform.
+> Build a minimal, scalable, extensible agentic-AI application that translates business objectives into controlled specialist workflows and produces a final CEO-level recommendation.
+
+The current application is a single Spring Boot service, not a distributed autonomous company platform.
 
 ## 2. Technology
 
@@ -24,7 +26,7 @@ Spring Boot 4.1.1
 Spring AI 2.0.1
 Maven
 MySQL 8.0.40
-Hibernate 7.4.5.Final
+Hibernate ORM 7.4.5.Final
 Groq
 ```
 
@@ -50,9 +52,9 @@ com.taufiqhashmi.foundryai
 └── workflows
 ```
 
-## 4. Foundation — IMPLEMENTED
+## 4. Foundation
 
-JPA entities:
+Implemented JPA entities:
 
 ```text
 Request
@@ -74,11 +76,12 @@ DTOs:
 
 ```text
 CreateRequestDTO
-ErrorResponseDTO
 RequestResponseDTO
-ValidationErrorResponseDTO
 WorkflowResponseDTO
 WorkflowTaskResponseDTO
+CEORecommendationResponseDTO
+ErrorResponseDTO
+ValidationErrorResponseDTO
 ```
 
 Exceptions:
@@ -89,7 +92,9 @@ ResourceNotFoundException
 GlobalExceptionHandler
 ```
 
-## 5. Agent Runtime — IMPLEMENTED
+## 5. Agent Runtime
+
+Implemented:
 
 ```text
 Agent
@@ -98,11 +103,12 @@ AgentTask
 AgentContext
 AgentResult
 AgentResultStatus
+StructuredAgentResponse
 AgentConfig
 AgentRegistry
 ```
 
-Current types:
+Types:
 
 ```text
 CEO
@@ -111,16 +117,14 @@ ENGINEERING
 INFRASTRUCTURE
 ```
 
-`AgentResult` uses:
+Result statuses:
 
 ```text
 SUCCESS
 FAILURE
 ```
 
-rather than a mutable success boolean.
-
-## 6. Concrete Agents — IMPLEMENTED
+Concrete implementations:
 
 ```text
 CEOAgent
@@ -129,15 +133,17 @@ EngineeringAgent
 InfrastructureAgent
 ```
 
-All four are thin adapters around `AiModelGateway`.
+## 6. AI Runtime
 
-## 7. AI Runtime — IMPLEMENTED
+Implemented:
 
 ```text
 AiModelGateway
 AiModelGatewayImpl
 ModelRouter
 ```
+
+Provider path:
 
 ```text
 Agent
@@ -153,46 +159,45 @@ Spring AI ChatClient
 Groq
 ```
 
-Configuration:
+Agent-specific configuration contains:
 
 ```text
 model
 systemPrompt
 temperature
+maxTokens
 tools
 includeReasoning
 ```
 
-## 8. Structured CEO Planning — IMPLEMENTED
+## 7. Structured AI
+
+Implemented:
 
 ```text
-StructuredAiModelGateway
-StructuredAiModelGatewayImpl
 CEOPlanner
+CEOSynthesizer
 PlannedTask
 ExecutionPlan
 ExecutionPlanBuilder
+CEORecommendationResponseDTO
 ```
 
-Flow:
+Important architectural correction:
 
-```text
-Business Objective
- ↓
-CEOPlanner
- ↓
-StructuredAiModelGateway
- ↓
-PlannedTask[]
- ↓
-ExecutionPlanBuilder
- ↓
-ExecutionPlan
-```
+> There is no longer a separate `StructuredAiModelGateway` in the implementation. Structured planning and synthesis are exposed through the unified `AiModelGateway`.
 
-A real-model integration test has verified structured planning.
+## 8. Structured Output
 
-## 9. Tool Runtime — IMPLEMENTED FOR CURRENT MVP
+`AiModelGatewayImpl` uses Spring AI `.entity(...)` for structured outputs and `.validateSchema()` for schema validation/self-correction.
+
+This replaced manual `ObjectMapper.readValue(...)` parsing of model responses.
+
+`ObjectMapper` is still used where application context needs serialization into a prompt.
+
+## 9. Tool Runtime
+
+Implemented:
 
 ```text
 ToolRegistry
@@ -206,207 +211,142 @@ Current tool:
 financial-calculator
 ```
 
-The tool performs deterministic `BigDecimal` arithmetic.
+Behavior:
 
-## 10. Workflow Runtime — IMPLEMENTED
+```text
+monthlyCost × months
+```
+
+The tool uses `BigDecimal` and validates null/negative monthly cost and non-positive month counts.
+
+## 10. Workflow Runtime
+
+Implemented:
 
 ```text
 ExecutionPlan
 PlannedTask
 ExecutionPlanBuilder
 TaskDependencyResolver
-WorkflowTaskDispatcher
 TaskContextBuilder
+WorkflowTaskDispatcher
 WorkflowEngine
 WorkflowResult
 WorkflowTaskStatus
 ```
 
-Current engine handles:
-
-- plan validation,
-- duplicate task detection,
-- unknown dependency rejection,
-- cycle/no-progress detection,
-- runnable-task resolution,
-- dependency blocking,
-- task dispatch,
-- result collection,
-- runtime failure handling,
-- context construction,
-- dependency result propagation.
-
-## 11. Workflow Semantics
-
-If:
+Current execution model:
 
 ```text
-CFO → FAILED
+sequential
+dependency-aware
+in-memory runtime
 ```
 
-then a dependent task becomes:
+Behavior includes:
 
 ```text
-BLOCKED
+plan validation
+dependency validation
+runnable-task detection
+dependency blocking
+context construction
+agent dispatch
+result collection
+dispatcher exception conversion
+cycle/no-progress detection
 ```
 
-Unknown dependencies are rejected.
+## 11. Context Propagation
 
-Circular/no-progress plans are rejected.
-
-Dispatch exceptions become failed `AgentResult` values.
-
-## 12. Context Propagation
-
-Current:
+The current `TaskContextBuilder` places:
 
 ```text
-AgentTask.context.data["dependencyResults"]
+context.data["dependencyResults"]
 ```
 
-Value:
+where each dependency result is converted from `AgentResult` into a `Map<String,Object>` containing:
 
 ```text
-Map<UUID, AgentResult>
+agentType
+output
+structuredData
+assumptions
+risks
 ```
 
-Verified:
+It currently:
 
-```text
-CFO
- ↓
-CFO AgentResult
- ↓
-TaskContextBuilder
- ↓
-Engineering AgentTask.context
- ↓
-Engineering
-```
+- creates a fresh context,
+- always creates `dependencyResults`,
+- silently ignores missing dependency results,
+- does not preserve an existing `AgentTask.context`.
 
-## 13. Current Execution Model
+This is the current implementation contract.
 
-The workflow engine is currently sequential.
+## 12. Services and Persistence
 
-Independent tasks are recognized through the dependency graph, but are not yet executed concurrently.
-
-Parallel execution is future work.
-
-## 14. Tests
-
-Verified test categories:
-
-```text
-CEO real-model execution
-CEO tool calling
-CEO structured planning
-workflow dependency behavior
-workflow failure/blocking
-workflow validation
-TaskContextBuilder
-dependency-result propagation
-```
-
-## 15. Current Architecture
-
-```text
-Business Objective
-       ↓
-CEOPlanner
-       ↓
-ExecutionPlan
-       ↓
-WorkflowEngine
-       ├── TaskDependencyResolver
-       ├── TaskContextBuilder
-       └── WorkflowTaskDispatcher
-                    ↓
-              AgentRegistry
-              ├── CFO
-              ├── Engineering
-              └── Infrastructure
-                    ↓
-              AgentResult
-```
-
-## 16. CEO Synthesis — NEXT
-
-```text
-CFO result
-Engineering result
-Infrastructure result
-        ↓
-CEO synthesis
-        ↓
-Final business outcome
-```
-
-This should not be implemented as a final CFO task.
-
-## 17. Application Services — NOT YET IMPLEMENTED
+Implemented:
 
 ```text
 RequestService
 WorkflowService
 ```
 
-These should connect durable request/workflow state to the runtime.
+The service layer connects request/workflow persistence to runtime planning, execution, task persistence, agent execution records, and CEO synthesis.
 
-## 18. REST — NOT YET IMPLEMENTED
+## 13. REST
 
-Planned:
+Implemented controller boundaries:
 
 ```text
 RequestController
 WorkflowController
-ApprovalController
 ```
 
-## 19. Governance — NOT YET IMPLEMENTED
+Approval controller exists as a boundary but approval processing is not implemented.
 
-Future:
+A local Postman execution has produced a completed workflow containing:
 
 ```text
-PolicyEvaluator
-PolicyDecision
-Approval
-ActionType
-RiskLevel
-Environment
+CFO = COMPLETED
+ENGINEERING = COMPLETED
+INFRASTRUCTURE = COMPLETED
+CEO recommendation = populated
+workflow status = COMPLETED
 ```
 
-## 20. CoALA — DEFERRED
+## 14. Verification
 
-> Design for memory now; implement memory later.
-
-Do not add memory/vector/embedding infrastructure yet.
-
-## 21. Immediate Next Step
+The latest supplied full Maven run before test updates:
 
 ```text
-1. CEO synthesis
-2. RequestService / WorkflowService
-3. runtime ↔ persistence integration
-4. end-to-end orchestration test
-5. REST API
-6. retries/timeouts
-7. governance/approval
-8. audit/observability
+57 tests
+10 failures
+1 error
 ```
 
-## 22. Rules for Future Sessions
+The failures were concentrated in:
 
-1. Do not invent implementation status.
-2. Preserve exact plural package names.
-3. Keep runtime and persistence separate.
-4. Do not conflate `WorkflowTask`, `AgentTask`, and `AgentExecution`.
-5. CEO must orchestrate through structured plans/workflows.
-6. Do not add CoALA memory infrastructure yet.
-7. Do not create JPA entities for every runtime concept.
-8. Do not create per-agent controllers.
-9. Keep repositories minimal.
-10. Use DTOs at REST boundaries.
-11. Do not introduce parallelism before sequential workflow semantics are stable.
-12. Keep `ToolRegistry` as a registry, not an authorization engine.
-13. Keep `ModelRouter` as the single AgentType → AgentSettings mapping point.
-14. Do not add abstractions merely to satisfy SOLID.
+```text
+TaskContextBuilderTest
+WorkflowEngineTest
+WorkflowEngineContextIntegrationTest
+```
+
+The test code was subsequently aligned with the current TaskContextBuilder contract and WorkflowEngine construction. A fresh full Maven result after those changes is still required before claiming a clean suite.
+
+## 15. Deferred Work
+
+```text
+authentication
+authorization
+policy engine
+human approvals
+audit persistence
+parallelism
+distributed workers
+external production tools/integrations
+persistent CoALA memory
+production hardening
+```

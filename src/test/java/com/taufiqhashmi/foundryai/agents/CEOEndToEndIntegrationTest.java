@@ -1,8 +1,10 @@
 package com.taufiqhashmi.foundryai.agents;
 
+import com.taufiqhashmi.foundryai.dtos.CEORecommendationResponseDTO;
 import com.taufiqhashmi.foundryai.workflows.ExecutionPlan;
 import com.taufiqhashmi.foundryai.workflows.WorkflowEngine;
 import com.taufiqhashmi.foundryai.workflows.WorkflowResult;
+
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -42,87 +44,61 @@ class CEOEndToEndIntegrationTest {
         // ---------------------------------------------------------
 
         String businessObjective = """
-                A fintech startup needs to decide whether to prioritize
-                reducing cloud infrastructure costs or accelerating product
-                development over the next quarter.
-
-                The decision must be evaluated from three required perspectives:
-                1. Financial impact and ROI.
-                2. Engineering feasibility, effort, and technical trade-offs.
-                3. Infrastructure cost, scalability, reliability, and operational impact.
-
-                Provide a final executive recommendation that considers
-                all three perspectives.
+                you are the ceo of roboAI which make autonomous robots
+                for security. one robot cost 15000 to make and we have
+                to make atleast 30 laks in profit to not be in loss.
+                also we have to make a new engineering system for
+                security of the bot because the bot is connected to
+                the internet it is prone to cyberattacks and also we
+                need to have a plan to deploy these features. give me
+                the financial,engineering and infrastucture plan for
+                executing all these functions
                 """;
 
         // ---------------------------------------------------------
         // 2. CEO creates execution plan
         // ---------------------------------------------------------
 
-        ExecutionPlan plan = ceoPlanner.createPlan(
-                businessObjective
-        );
+        ExecutionPlan plan =
+                ceoPlanner.createPlan(businessObjective);
 
         assertNotNull(plan);
-
-        assertNotNull(
-                plan.getTasks()
-        );
+        assertNotNull(plan.getTasks());
 
         assertFalse(
                 plan.getTasks().isEmpty(),
                 "CEO should generate specialist tasks"
         );
 
-        System.out.println(
-                "========================================"
-        );
-
-        System.out.println(
-                "CEO GENERATED EXECUTION PLAN"
-        );
-
-        System.out.println(
-                "========================================"
-        );
+        System.out.println("========================================");
+        System.out.println("CEO GENERATED EXECUTION PLAN");
+        System.out.println("========================================");
 
         plan.getTasks().forEach(task -> {
 
             System.out.println(
-                    "Task ID      : "
-                            + task.getTaskId()
+                    "Task ID      : " + task.getTaskId()
             );
 
             System.out.println(
-                    "Agent Type   : "
-                            + task.getAgentType()
+                    "Agent Type   : " + task.getAgentType()
             );
 
             System.out.println(
-                    "Objective    : "
-                            + task.getObjective()
+                    "Objective    : " + task.getObjective()
             );
 
             System.out.println(
-                    "Dependencies : "
-                            + task.getDependencies()
+                    "Dependencies : " + task.getDependencies()
             );
 
-            System.out.println(
-                    "----------------------------------------"
-            );
+            System.out.println("----------------------------------------");
 
-            assertNotNull(
-                    task.getTaskId()
-            );
+            assertNotNull(task.getTaskId());
 
-            assertNotNull(
-                    task.getAgentType()
-            );
+            assertNotNull(task.getAgentType());
 
-            assertNotNull(
-                    task.getObjective()
-            );
+            assertNotNull(task.getObjective());
 
             assertFalse(
                     task.getObjective().isBlank()
@@ -135,8 +111,7 @@ class CEOEndToEndIntegrationTest {
         });
 
         // ---------------------------------------------------------
-        // Verify that the CEO selected all required specialists
-        // for this specific E2E scenario.
+        // Verify required specialists
         // ---------------------------------------------------------
 
         Set<AgentType> plannedAgentTypes =
@@ -167,49 +142,47 @@ class CEOEndToEndIntegrationTest {
         WorkflowResult workflowResult =
                 workflowEngine.execute(plan);
 
-        assertNotNull(
-                workflowResult
-        );
+        assertNotNull(workflowResult);
 
-        System.out.println(
-                "========================================"
-        );
-
-        System.out.println(
-                "SPECIALIST WORKFLOW RESULTS"
-        );
-
-        System.out.println(
-                "========================================"
-        );
+        System.out.println("========================================");
+        System.out.println("SPECIALIST WORKFLOW RESULTS");
+        System.out.println("========================================");
 
         workflowResult.getResults()
                 .forEach((taskId, result) -> {
 
                     System.out.println(
-                            "Task ID    : "
-                                    + taskId
+                            "Task ID    : " + taskId
                     );
 
                     System.out.println(
-                            "Agent      : "
-                                    + result.getAgentType()
+                            "Agent      : " + result.getAgentType()
                     );
 
                     System.out.println(
-                            "Status     : "
-                                    + result.getStatus()
+                            "Status     : " + result.getStatus()
                     );
 
                     System.out.println(
-                            "Output     : "
-                                    + result.getOutput()
+                            "Output     : " + result.getOutput()
+                    );
+
+                    System.out.println(
+                            "Structured : " + result.getStructuredData()
+                    );
+
+                    System.out.println(
+                            "Assumptions: " + result.getAssumptions()
+                    );
+
+                    System.out.println(
+                            "Risks      : " + result.getRisks()
                     );
 
                     if (result.getError() != null) {
+
                         System.out.println(
-                                "Error      : "
-                                        + result.getError()
+                                "Error      : " + result.getError()
                         );
                     }
 
@@ -237,10 +210,44 @@ class CEOEndToEndIntegrationTest {
         );
 
         // ---------------------------------------------------------
+        // Verify structured specialist responses
+        // ---------------------------------------------------------
+
+        workflowResult.getResults()
+                .values()
+                .forEach(result -> {
+
+                    assertNotNull(
+                            result.getOutput(),
+                            "Successful agent must have output"
+                    );
+
+                    assertFalse(
+                            result.getOutput().isBlank(),
+                            "Successful agent output must not be blank"
+                    );
+
+                    assertNotNull(
+                            result.getStructuredData(),
+                            "Successful agent must provide structured data"
+                    );
+
+                    assertNotNull(
+                            result.getAssumptions(),
+                            "Agent assumptions must not be null"
+                    );
+
+                    assertNotNull(
+                            result.getRisks(),
+                            "Agent risks must not be null"
+                    );
+                });
+
+        // ---------------------------------------------------------
         // 4. CEO synthesizes specialist results
         // ---------------------------------------------------------
 
-        String finalRecommendation =
+        CEORecommendationResponseDTO finalRecommendation =
                 ceoSynthesizer.synthesize(
                         businessObjective,
                         workflowResult.getResults()
@@ -251,32 +258,71 @@ class CEOEndToEndIntegrationTest {
         // ---------------------------------------------------------
 
         assertNotNull(
-                finalRecommendation
+                finalRecommendation,
+                "CEO synthesis should return a recommendation"
+        );
+
+        assertNotNull(
+                finalRecommendation.getRecommendation(),
+                "CEO recommendation text must not be null"
         );
 
         assertFalse(
-                finalRecommendation.isBlank(),
-                "CEO synthesis should return a final recommendation"
-        );
-
-        System.out.println(
-                "========================================"
-        );
-
-        System.out.println(
-                "FINAL CEO RECOMMENDATION"
-        );
-
-        System.out.println(
-                "========================================"
-        );
-
-        System.out.println(
                 finalRecommendation
+                        .getRecommendation()
+                        .isBlank(),
+                "CEO recommendation text must not be blank"
+        );
+
+        assertNotNull(
+                finalRecommendation.getKeyFindings(),
+                "CEO key findings must not be null"
+        );
+
+        assertNotNull(
+                finalRecommendation.getAssumptions(),
+                "CEO assumptions must not be null"
+        );
+
+        assertNotNull(
+                finalRecommendation.getRisks(),
+                "CEO risks must not be null"
+        );
+
+        assertNotNull(
+                finalRecommendation.getNextSteps(),
+                "CEO next steps must not be null"
+        );
+
+        System.out.println("========================================");
+        System.out.println("FINAL CEO RECOMMENDATION");
+        System.out.println("========================================");
+
+        System.out.println(
+                "Recommendation : "
+                        + finalRecommendation.getRecommendation()
         );
 
         System.out.println(
-                "========================================"
+                "Key Findings   : "
+                        + finalRecommendation.getKeyFindings()
         );
+
+        System.out.println(
+                "Assumptions    : "
+                        + finalRecommendation.getAssumptions()
+        );
+
+        System.out.println(
+                "Risks          : "
+                        + finalRecommendation.getRisks()
+        );
+
+        System.out.println(
+                "Next Steps     : "
+                        + finalRecommendation.getNextSteps()
+        );
+
+        System.out.println("========================================");
     }
 }

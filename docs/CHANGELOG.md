@@ -1,131 +1,111 @@
 # FoundryAI Documentation Changelog
 
-## 2026-09-08
+## 2026-09-16 — Ground-Truth Update
 
-This refresh reconciles the documentation with the implementation reached after the previous 2026-09-05 documentation baseline.
+The documentation was reconciled with the implementation and development work completed after the 2026-09-08 documentation baseline.
 
-### Newly implemented since the old baseline
-
-```text
-AiModelGateway
-AiModelGatewayImpl
-ModelRouter
-
-CEOAgent
-CFOAgent
-EngineeringAgent
-InfrastructureAgent
-
-StructuredAiModelGateway
-StructuredAiModelGatewayImpl
-CEOPlanner
-
-PlannedTask
-ExecutionPlan
-ExecutionPlanBuilder
-
-ToolRegistry
-ToolConfiguration
-FinancialCalculatorTool
-
-TaskDependencyResolver
-WorkflowTaskDispatcher
-TaskContextBuilder
-WorkflowEngine
-WorkflowResult
-WorkflowTaskStatus
-```
-
-### Agent result model
-
-`AgentResult` now uses:
+### Major implementation changes reflected
 
 ```text
-AgentResultStatus.SUCCESS
-AgentResultStatus.FAILURE
+AiModelGateway became the single AI gateway
+ModelRouter retained as AgentType → AgentSettings router
+
+CEOPlanner implemented
+CEOSynthesizer implemented
+CEORecommendationResponseDTO introduced
+
+Spring AI structured output migrated to .entity(...)
+Spring AI validateSchema() added for structured-output validation/self-correction
+
+Manual LLM JSON parsing removed for structured outputs
+ObjectMapper retained only where needed for context serialization
+
+WorkflowService / RequestService integrated with persistence
+REST request/workflow execution path implemented
+
+WorkflowEngine context builder integrated
+TaskContextBuilder currently serializes dependency AgentResult objects
+into Map<String,Object> values
+
+Workflow persistence includes:
+Request
+Workflow
+WorkflowTask
+AgentExecution
 ```
 
-instead of the earlier mutable boolean-success representation.
-
-### AI configuration
-
-`AgentConfig` now includes:
-
-```text
-model
-systemPrompt
-temperature
-tools
-includeReasoning
-```
-
-`includeReasoning=false` is used for Groq GPT-OSS tool-call compatibility.
-
-### Tool architecture
-
-The implemented MVP uses:
+### Current tool architecture
 
 ```text
 AgentConfig
- ↓
+    ↓
+allowed tool names
+    ↓
 ToolRegistry
- ↓
+    ↓
 ToolCallback
+    ↓
+deterministic tool
 ```
 
-A separate `AgentToolResolver` is not required.
+There is no `AgentToolResolver`.
 
-### Workflow architecture
-
-The runtime now supports:
-
-- task validation,
-- dependency validation,
-- runnable-task detection,
-- dependency blocking,
-- dispatch through `AgentRegistry`,
-- result collection,
-- dependency-result context propagation,
-- cycle/no-progress detection,
-- runtime failure conversion.
-
-The engine is currently sequential.
-
-### Context propagation
-
-Dependent tasks receive:
+### Current workflow behavior
 
 ```text
-AgentTask.context.data["dependencyResults"]
+plan validation
+dependency validation
+runnable-task detection
+dependency blocking
+sequential dispatch
+context propagation
+result collection
+dispatcher-exception conversion
+cycle/no-progress detection
 ```
 
-with:
+### Current CEO synthesis flow
 
 ```text
-Map<UUID, AgentResult>
+specialist AgentResult map
+        ↓
+CEOSynthesizer
+        ↓
+AiModelGateway.synthesize(...)
+        ↓
+Spring AI entity + schema validation
+        ↓
+CEORecommendationResponseDTO
 ```
 
-### CEO planning correction
+### Documentation corrections
 
-The CEO planner produces specialist execution work.
+The following obsolete statements were removed:
 
-Final synthesis belongs to the CEO/orchestration layer and should not be represented as an arbitrary CFO synthesis task.
+- `StructuredAiModelGateway` as the current gateway abstraction.
+- CEO synthesis as future-only.
+- REST/services as entirely unimplemented.
+- runtime/persistence integration as entirely future.
+- dependency context as `Map<UUID, AgentResult>`; the implementation currently exposes serialized result maps under `dependencyResults`.
+- claims that all tests were passing.
 
-### Still future
+### Verification status
+
+A supplied full Maven test run executed 57 tests and reported 10 failures plus 1 error, concentrated in `TaskContextBuilderTest`, `WorkflowEngineTest`, and `WorkflowEngineContextIntegrationTest`. The failing tests were then aligned with the current `TaskContextBuilder` contract. A new complete Maven run after those test changes has not yet been established in this documentation update.
+
+### Known current limitation
+
+The MVP does not yet implement:
 
 ```text
-CEO final synthesis
-RequestService
-WorkflowService
-runtime ↔ persistence integration
-REST controllers
-policy engine
-approval system
-audit persistence
 authentication/authorization
-retries/timeouts
-parallel execution
-production integrations
-CoALA memory
-production hardening
+policy engine
+human approval
+audit event persistence
+parallel workflow execution
+external production integrations
+persistent CoALA memory
+distributed workers
 ```
+
+These remain separate future capabilities rather than current features.

@@ -1,18 +1,20 @@
 # FoundryAI — Tool Architecture
 
-> **Status:** Updated 2026-09-08  
+> **Status:** Ground-truth update — 2026-09-16
 > **Implementation:** Tool registry and deterministic financial calculator are implemented.
 
 ## 1. Purpose
 
-Tools are the controlled execution layer between agents and application capabilities.
+Tools are the controlled execution boundary between agents and application capabilities.
 
-Current:
+Current path:
 
 ```text
 Agent
  ↓
-AiModelGateway
+AiModelGatewayImpl
+ ↓
+AgentSettings.tools
  ↓
 ToolRegistry
  ↓
@@ -21,45 +23,30 @@ ToolCallback
 Tool implementation
 ```
 
-Future:
-
-```text
-Tool request
- ↓
-Capability check
- ↓
-Policy
- ↓
-Approval
- ↓
-Adapter
- ↓
-External system
-```
-
 ## 2. Tool Registry
 
-Implemented:
-
-```text
-ToolRegistry
-```
-
-It builds:
+`ToolRegistry` creates:
 
 ```text
 tool name → ToolCallback
 ```
 
-from Spring AI `ToolCallbackProvider` callbacks.
+from a Spring AI `ToolCallbackProvider`.
 
-Duplicate tool names fail fast.
+It:
+
+- rejects duplicate tool names,
+- resolves tools by name,
+- rejects missing/blank names,
+- fails when a requested tool is not registered.
 
 It does not perform authorization.
 
-## 3. Agent Tool Configuration
+## 3. Tool Configuration
 
-Agent settings declare tool identifiers:
+Agent configuration declares tool identifiers.
+
+Example:
 
 ```properties
 foundryai.agents.ceo.tools[0]=financial-calculator
@@ -68,13 +55,15 @@ foundryai.agents.cfo.tools[0]=financial-calculator
 
 `AiModelGatewayImpl` resolves these identifiers through `ToolRegistry`.
 
+There is no separate `AgentToolResolver`.
+
 ## 4. Current Tool
 
 ```text
 financial-calculator
 ```
 
-Implementation:
+Implemented by:
 
 ```text
 FinancialCalculatorTool
@@ -86,27 +75,52 @@ Behavior:
 monthlyCost × months
 ```
 
-Uses `BigDecimal`.
+Signature:
+
+```java
+BigDecimal calculateAnnualCost(
+    BigDecimal monthlyCost,
+    int months
+)
+```
+
+Although the method name says `calculateAnnualCost`, its arithmetic is explicitly based on the supplied number of months.
 
 Validation:
 
-- monthly cost cannot be null,
-- monthly cost cannot be negative,
-- months must be greater than zero.
-
-## 5. Current Tool Test
-
-The CEO integration test verifies:
-
 ```text
-monthlyCost = 1250.50
-months = 12
-result = 15006.00
+monthly cost cannot be null
+monthly cost cannot be negative
+months must be > 0
 ```
 
-The test also verifies invocation of the actual Spring-managed tool bean using `@MockitoSpyBean`.
+The implementation uses `BigDecimal`.
 
-## 6. Tool Categories
+## 5. Tool Evaluation
+
+A dedicated test verifies:
+
+```text
+1250.50 × 12 = 15006.00
+```
+
+The integration coverage also verifies invocation of the Spring-managed tool bean.
+
+## 6. Tool Security Boundary
+
+Current tool registration is not equivalent to authorization.
+
+Future mature tool execution should include:
+
+```text
+capability check
+policy decision
+approval where required
+adapter / external API call
+audit event
+```
+
+## 7. Target Tool Categories
 
 ### READ
 
@@ -135,9 +149,9 @@ executePurchase
 rollbackProduction
 ```
 
-EXECUTE requires stronger future authorization.
+These are future tool examples, not current implemented tools.
 
-## 7. Future Tool Contract
+## 8. Future Tool Contract
 
 A mature tool should define:
 
@@ -156,132 +170,11 @@ retry policy
 audit policy
 ```
 
-## 8. Future Tool Context
-
-Potential:
-
-```text
-userId
-tenantId
-workflowId
-taskId
-agent type/id
-executionId
-authorizationContext
-correlationId
-```
-
 ## 9. Execution Rules
 
-1. Never trust model-generated parameters blindly.
-2. Validate typed inputs.
-3. Never let the model choose authorization.
-4. Never execute destructive actions merely because the model says they are necessary.
-5. Persist important executions once execution persistence exists.
+1. Do not blindly trust model-generated parameters.
+2. Validate typed tool inputs.
+3. Do not let the model choose authorization.
+4. Do not execute destructive operations merely because the model recommends them.
+5. Persist important executions when durable tool-execution persistence exists.
 6. Make side-effecting operations idempotent where possible.
-
-## 10. Future CFO Tools
-
-```text
-getCashBalance
-getTransactions
-getMonthlyBurn
-getRevenue
-calculateRunway
-forecastCashFlow
-analyzeExpenses
-simulateHiringPlan
-```
-
-## 11. Future Engineering Tools
-
-```text
-analyzeRepository
-inspectIssues
-breakDownFeature
-estimateWork
-createIssue
-createPullRequest
-reviewCode
-runTests
-```
-
-`runTests` eventually requires isolation.
-
-## 12. Future Infrastructure Tools
-
-```text
-inspectInfrastructure
-estimateCloudCost
-generateTerraform
-validateTerraform
-createInfrastructurePR
-checkDeployment
-```
-
-Future high-impact capabilities:
-
-```text
-deployProduction
-rollbackDeployment
-```
-
-## 13. Future Tool Result Model
-
-Potential envelope:
-
-```json
-{
-  "success": true,
-  "status": "COMPLETED",
-  "data": {},
-  "warnings": [],
-  "errors": [],
-  "metadata": {}
-}
-```
-
-The current callback integration does not require introducing this envelope yet.
-
-## 14. Retry Policy
-
-Read-only provider failures may be retryable.
-
-Unknown side effects must not be blindly retried.
-
-```text
-createIssue()
- ↓
-timeout
- ↓
-outcome unknown
- ↓
-lookup/idempotency
- ↓
-retry only if safe
-```
-
-## 15. Tool Versioning
-
-Future:
-
-```text
-estimateCloudCost:v1
-estimateCloudCost:v2
-```
-
-## 16. MVP Principle
-
-Prefer:
-
-```text
-Agent → Tool → Deterministic Service
-```
-
-over:
-
-```text
-Agent → LLM → LLM → LLM → External API
-```
-
-Use the model for reasoning and interpretation; use normal software for calculation, validation, persistence, authorization, and execution.

@@ -1,153 +1,207 @@
 package com.taufiqhashmi.foundryai.agents.implementations;
 
 import com.taufiqhashmi.foundryai.agents.AgentResult;
+import com.taufiqhashmi.foundryai.agents.AgentResultStatus;
 import com.taufiqhashmi.foundryai.agents.AgentTask;
 import com.taufiqhashmi.foundryai.agents.AgentType;
-import com.taufiqhashmi.foundryai.tools.implementations.FinancialCalculatorTool;
-import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
+import com.taufiqhashmi.foundryai.agents.StructuredAgentResponse;
+import com.taufiqhashmi.foundryai.ai.AiModelGateway;
 
-import java.math.BigDecimal;
+import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.Mockito.atLeastOnce;
-import static org.mockito.Mockito.verify;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
-@SpringBootTest
-@ActiveProfiles("test")
 class CEOAgentIntegrationTest {
 
-    private final CEOAgent ceoAgent;
+    @Test
+    void shouldFailWhenAiModelReturnsNullResponse() {
 
-    @MockitoSpyBean 
-    private final FinancialCalculatorTool financialCalculatorTool;
+        AiModelGateway aiModelGateway =
+                mock(AiModelGateway.class);
 
-    @Autowired
-    CEOAgentIntegrationTest(
-            CEOAgent ceoAgent,
-            FinancialCalculatorTool financialCalculatorTool
-    ) {
-        this.ceoAgent = ceoAgent;
-        this.financialCalculatorTool = financialCalculatorTool;
+        when(aiModelGateway.generateAgentResponse(
+                eq(AgentType.CEO),
+                anyString(),
+                any()
+        )).thenReturn(null);
+
+        CEOAgent ceoAgent =
+                new CEOAgent(aiModelGateway);
+
+        AgentTask task = AgentTask.builder()
+                .agentType(AgentType.CEO)
+                .objective("Create a business strategy")
+                .build();
+
+        AgentResult result =
+                ceoAgent.execute(task);
+
+        assertEquals(
+                AgentResultStatus.FAILURE,
+                result.getStatus()
+        );
+
+        assertEquals(
+                "Agent returned an empty output",
+                result.getError()
+        );
+
+        assertNull(result.getOutput());
     }
 
     @Test
-    void shouldExecuteCeoAgentAgainstRealModel() {
+    void shouldFailWhenAiModelReturnsEmptyOutput() {
+
+        AiModelGateway aiModelGateway =
+                mock(AiModelGateway.class);
+
+        when(aiModelGateway.generateAgentResponse(
+                eq(AgentType.CEO),
+                anyString(),
+                any()
+        )).thenReturn(
+                StructuredAgentResponse.builder()
+                        .output("")
+                        .build()
+        );
+
+        CEOAgent ceoAgent =
+                new CEOAgent(aiModelGateway);
 
         AgentTask task = AgentTask.builder()
-                .objective(
-                        "Analyze this business objective and provide a concise strategic recommendation: "
-                                + "Should a fintech startup prioritize reducing cloud infrastructure costs "
-                                + "or accelerating product development over the next quarter?"
-                )
+                .agentType(AgentType.CEO)
+                .objective("Create a business strategy")
                 .build();
 
-        AgentResult result = ceoAgent.execute(task);
+        AgentResult result =
+                ceoAgent.execute(task);
 
-        assertNotNull(result);
+        assertEquals(
+                AgentResultStatus.FAILURE,
+                result.getStatus()
+        );
 
-        printResult("CEO AGENT EXECUTION", result);
+        assertEquals(
+                "Agent returned an empty output",
+                result.getError()
+        );
+
+        assertNull(result.getOutput());
+    }
+
+    @Test
+    void shouldReturnStructuredAgentResult() {
+
+        AiModelGateway aiModelGateway =
+                mock(AiModelGateway.class);
+
+        StructuredAgentResponse response =
+                StructuredAgentResponse.builder()
+                        .output("Launch the product after validating demand.")
+                        .structuredData(
+                                java.util.Map.of(
+                                        "recommendation",
+                                        "Validate demand before launch"
+                                )
+                        )
+                        .assumptions(
+                                java.util.List.of(
+                                        "Target market exists"
+                                )
+                        )
+                        .risks(
+                                java.util.List.of(
+                                        "Demand may be lower than expected"
+                                )
+                        )
+                        .build();
+
+        when(aiModelGateway.generateAgentResponse(
+                eq(AgentType.CEO),
+                anyString(),
+                any()
+        )).thenReturn(response);
+
+        CEOAgent ceoAgent =
+                new CEOAgent(aiModelGateway);
+
+        AgentTask task = AgentTask.builder()
+                .agentType(AgentType.CEO)
+                .objective("Create a business strategy")
+                .build();
+
+        AgentResult result =
+                ceoAgent.execute(task);
+
+        assertEquals(
+                AgentResultStatus.SUCCESS,
+                result.getStatus()
+        );
 
         assertEquals(
                 AgentType.CEO,
                 result.getAgentType()
         );
 
-        assertTrue(
-                result.isSuccessful(),
-                "CEO agent execution failed: " + result.getError()
+        assertEquals(
+                "Launch the product after validating demand.",
+                result.getOutput()
         );
 
-        assertNotNull(result.getOutput());
+        assertEquals(
+                response.getStructuredData(),
+                result.getStructuredData()
+        );
 
-        assertFalse(
-                result.getOutput().isBlank()
+        assertEquals(
+                response.getAssumptions(),
+                result.getAssumptions()
+        );
+
+        assertEquals(
+                response.getRisks(),
+                result.getRisks()
         );
     }
 
     @Test
-    void shouldUseFinancialCalculatorTool() {
+    void shouldFailWhenTaskIsNull() {
 
-        AgentTask task = AgentTask.builder()
-                .objective(
-                        "Use the financial-calculator tool to calculate the total cost "
-                                + "of a cloud service that costs $1250.50 per month for 12 months. "
-                                + "Return the calculated total and briefly explain the result."
-                )
-                .build();
+        AiModelGateway aiModelGateway =
+                mock(AiModelGateway.class);
 
-        AgentResult result = ceoAgent.execute(task);
+        CEOAgent ceoAgent =
+                new CEOAgent(aiModelGateway);
 
-        assertNotNull(result);
-
-        printResult("CEO AGENT TOOL EXECUTION", result);
-
-        assertEquals(
-                AgentType.CEO,
-                result.getAgentType()
-        );
-
-        assertTrue(
-                result.isSuccessful(),
-                "CEO agent execution failed: " + result.getError()
-        );
-
-        assertNotNull(result.getOutput());
-
-        assertFalse(
-                result.getOutput().isBlank()
-        );
-
-        assertTrue(
-                result.getOutput().contains("15,006")
-                        || result.getOutput().contains("15006"),
-                "Expected calculated total 15,006 in output, but got: "
-                        + result.getOutput()
-        );
-
-        ArgumentCaptor<BigDecimal> monthlyCostCaptor =
-                ArgumentCaptor.forClass(BigDecimal.class);
-
-        ArgumentCaptor<Integer> monthsCaptor =
-                ArgumentCaptor.forClass(Integer.class);
-
-        verify(financialCalculatorTool, atLeastOnce())
-                .calculateAnnualCost(
-                        monthlyCostCaptor.capture(),
-                        monthsCaptor.capture()
-                );
-
-        assertEquals(
-                new BigDecimal("1250.5"),
-                monthlyCostCaptor.getValue()
-        );
-
-        assertEquals(
-                12,
-                monthsCaptor.getValue()
+        org.junit.jupiter.api.Assertions.assertThrows(
+                IllegalArgumentException.class,
+                () -> ceoAgent.execute(null)
         );
     }
 
-    private void printResult(
-            String title,
-            AgentResult result
-    ) {
-        System.out.println("========================================");
-        System.out.println(title);
-        System.out.println("========================================");
-        System.out.println("Agent Type : " + result.getAgentType());
-        System.out.println("Status     : " + result.getStatus());
-        System.out.println("Successful : " + result.isSuccessful());
-        System.out.println("Output     : " + result.getOutput());
-        System.out.println("Error      : " + result.getError());
-        System.out.println("Metadata   : " + result.getMetadata());
-        System.out.println("========================================");
+    @Test
+    void shouldFailWhenTaskObjectiveIsBlank() {
+
+        AiModelGateway aiModelGateway =
+                mock(AiModelGateway.class);
+
+        CEOAgent ceoAgent =
+                new CEOAgent(aiModelGateway);
+
+        AgentTask task = AgentTask.builder()
+                .agentType(AgentType.CEO)
+                .objective("   ")
+                .build();
+
+        org.junit.jupiter.api.Assertions.assertThrows(
+                IllegalArgumentException.class,
+                () -> ceoAgent.execute(task)
+        );
     }
 }

@@ -1,8 +1,10 @@
 package com.taufiqhashmi.foundryai.agents;
 
-import com.taufiqhashmi.foundryai.ai.StructuredAiModelGateway;
+import com.taufiqhashmi.foundryai.ai.AiModelGateway;
+import com.taufiqhashmi.foundryai.dtos.CEORecommendationResponseDTO;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -15,10 +17,10 @@ import static org.mockito.Mockito.when;
 class CEOSynthesizerTest {
 
     @Test
-    void shouldDelegateSynthesisToStructuredAiGateway() {
+    void shouldDelegateSynthesisToAiGateway() {
 
-        StructuredAiModelGateway gateway =
-                mock(StructuredAiModelGateway.class);
+        AiModelGateway gateway =
+                mock(AiModelGateway.class);
 
         CEOSynthesizer synthesizer =
                 new CEOSynthesizer(gateway);
@@ -41,6 +43,34 @@ class CEOSynthesizerTest {
                         specialistResult
                 );
 
+        CEORecommendationResponseDTO expectedRecommendation =
+                CEORecommendationResponseDTO.builder()
+                        .recommendation(
+                                "Prioritize cloud cost reduction."
+                        )
+                        .keyFindings(
+                                Map.of(
+                                        "financialImpact",
+                                        "Cloud costs can be reduced."
+                                )
+                        )
+                        .assumptions(
+                                List.of(
+                                        "Current cloud costs remain stable."
+                                )
+                        )
+                        .risks(
+                                List.of(
+                                        "Cost reduction may affect performance."
+                                )
+                        )
+                        .nextSteps(
+                                List.of(
+                                        "Analyze the largest cloud cost drivers."
+                                )
+                        )
+                        .build();
+
         when(
                 gateway.synthesize(
                         AgentType.CEO,
@@ -48,18 +78,43 @@ class CEOSynthesizerTest {
                         specialistResults
                 )
         ).thenReturn(
-                "Prioritize cloud cost reduction."
+                expectedRecommendation
         );
 
-        String result =
+        CEORecommendationResponseDTO result =
                 synthesizer.synthesize(
                         "Reduce operating costs.",
                         specialistResults
                 );
 
         assertEquals(
-                "Prioritize cloud cost reduction.",
+                expectedRecommendation,
                 result
+        );
+
+        assertEquals(
+                "Prioritize cloud cost reduction.",
+                result.getRecommendation()
+        );
+
+        assertEquals(
+                expectedRecommendation.getKeyFindings(),
+                result.getKeyFindings()
+        );
+
+        assertEquals(
+                expectedRecommendation.getAssumptions(),
+                result.getAssumptions()
+        );
+
+        assertEquals(
+                expectedRecommendation.getRisks(),
+                result.getRisks()
+        );
+
+        assertEquals(
+                expectedRecommendation.getNextSteps(),
+                result.getNextSteps()
         );
 
         verify(gateway).synthesize(
@@ -69,11 +124,12 @@ class CEOSynthesizerTest {
         );
     }
 
+
     @Test
     void shouldRejectBlankBusinessObjective() {
 
-        StructuredAiModelGateway gateway =
-                mock(StructuredAiModelGateway.class);
+        AiModelGateway gateway =
+                mock(AiModelGateway.class);
 
         CEOSynthesizer synthesizer =
                 new CEOSynthesizer(gateway);
@@ -105,11 +161,12 @@ class CEOSynthesizerTest {
         );
     }
 
+
     @Test
     void shouldRejectNullBusinessObjective() {
 
-        StructuredAiModelGateway gateway =
-                mock(StructuredAiModelGateway.class);
+        AiModelGateway gateway =
+                mock(AiModelGateway.class);
 
         CEOSynthesizer synthesizer =
                 new CEOSynthesizer(gateway);
@@ -141,11 +198,12 @@ class CEOSynthesizerTest {
         );
     }
 
+
     @Test
     void shouldRejectEmptySpecialistResults() {
 
-        StructuredAiModelGateway gateway =
-                mock(StructuredAiModelGateway.class);
+        AiModelGateway gateway =
+                mock(AiModelGateway.class);
 
         CEOSynthesizer synthesizer =
                 new CEOSynthesizer(gateway);
@@ -159,11 +217,12 @@ class CEOSynthesizerTest {
         );
     }
 
+
     @Test
     void shouldRejectNullSpecialistResults() {
 
-        StructuredAiModelGateway gateway =
-                mock(StructuredAiModelGateway.class);
+        AiModelGateway gateway =
+                mock(AiModelGateway.class);
 
         CEOSynthesizer synthesizer =
                 new CEOSynthesizer(gateway);

@@ -1,0 +1,387 @@
+@startuml FoundryAI
+
+skinparam packageStyle rectangle
+skinparam classAttributeIconSize 0
+skinparam linetype ortho
+hide empty members
+
+title FoundryAI - Current MVP Class Model
+
+package "controllers" {
+  class RequestController
+  class WorkflowController
+  class ApprovalController <<future>>
+}
+
+package "services" {
+  class RequestService
+  class WorkflowService
+}
+
+package "agents" {
+  interface Agent {
+    + getType() : AgentType
+    + execute(task : AgentTask) : AgentResult
+  }
+
+  class CEOAgent
+  class CFOAgent
+  class EngineeringAgent
+  class InfrastructureAgent
+
+  class CEOPlanner {
+    + createPlan(businessObjective : String) : ExecutionPlan
+  }
+
+  class CEOSynthesizer {
+    + synthesize(...) : CEORecommendationResponseDTO
+  }
+
+  class AgentRegistry {
+    + getAgent(agentType : AgentType) : Agent
+  }
+
+  class AgentConfig
+  class AgentSettings {
+    - model : String
+    - systemPrompt : String
+    - temperature : Double
+    - maxTokens : Integer
+    - tools : List<String>
+    - includeReasoning : Boolean
+  }
+
+  class AgentContext {
+    - data : Map
+  }
+
+  class AgentTask {
+    - taskId : UUID
+    - agentType : AgentType
+    - objective : String
+    - dependencies : List<UUID>
+    - context : AgentContext
+  }
+
+  class AgentResult {
+    - agentType : AgentType
+    - status : AgentResultStatus
+    - output : String
+    - structuredData : Map
+    - assumptions : List<String>
+    - risks : List<String>
+    - error : String
+    - metadata : Map
+    + isSuccessful() : boolean
+    + isFailed() : boolean
+  }
+
+  class StructuredAgentResponse {
+    - output : String
+    - structuredData : Map
+    - assumptions : List<String>
+    - risks : List<String>
+  }
+
+  enum AgentType {
+    CEO
+    CFO
+    ENGINEERING
+    INFRASTRUCTURE
+  }
+
+  enum AgentResultStatus {
+    SUCCESS
+    FAILURE
+  }
+}
+
+package "ai" {
+  interface AiModelGateway {
+    + generatePlan(agentType : AgentType, userPrompt : String) : List<PlannedTask>
+    + generateAgentResponse(agentType : AgentType, userPrompt : String, context : AgentContext) : StructuredAgentResponse
+    + synthesize(agentType : AgentType, businessObjective : String, specialistResults : Map) : CEORecommendationResponseDTO
+  }
+
+  class AiModelGatewayImpl {
+    - modelRouter : ModelRouter
+    - chatClient : ChatClient
+    - objectMapper : ObjectMapper
+  }
+
+  class ModelRouter {
+    + resolve(agentType : AgentType) : AgentSettings
+  }
+}
+
+package "tools" {
+  class ToolRegistry {
+    + getTool(toolName : String) : ToolCallback
+  }
+
+  class ToolConfiguration
+
+  class FinancialCalculatorTool {
+    + calculateAnnualCost(monthlyCost : BigDecimal, months : int) : BigDecimal
+  }
+}
+
+package "workflows" {
+  class ExecutionPlan {
+    - tasks : List<AgentTask>
+  }
+
+  class PlannedTask {
+    - taskKey : String
+    - agentType : AgentType
+    - objective : String
+    - dependencies : List<String>
+  }
+
+  class ExecutionPlanBuilder {
+    + build(plannedTasks : List<PlannedTask>) : ExecutionPlan
+  }
+
+  class TaskDependencyResolver {
+    + findRunnableTasks(tasks : List<AgentTask>, completedTaskIds : Set<UUID>) : List<AgentTask>
+  }
+
+  class WorkflowEngine {
+    + execute(plan : ExecutionPlan) : WorkflowResult
+  }
+
+  class WorkflowTaskDispatcher {
+    + dispatch(task : AgentTask) : AgentResult
+  }
+
+  class TaskContextBuilder {
+    + build(task : AgentTask, results : Map<UUID, AgentResult>) : AgentContext
+  }
+
+  class WorkflowResult {
+    - successful : boolean
+    - results : Map<UUID, AgentResult>
+    - taskStatuses : Map<UUID, WorkflowTaskStatus>
+    - failedTasks : List<UUID>
+    - blockedTasks : List<UUID>
+    + isFailed() : boolean
+  }
+
+  enum WorkflowTaskStatus {
+    PENDING
+    RUNNING
+    SUCCESS
+    FAILED
+    BLOCKED
+  }
+}
+
+package "entities" {
+  class Request {
+    - id : UUID
+    - userId : UUID
+    - objective : String
+    - status : RequestStatus
+    - createdAt : Instant
+    - updatedAt : Instant
+  }
+
+  class Workflow {
+    - id : UUID
+    - request : Request
+    - status : WorkflowStatus
+    - createdAt : Instant
+    - updatedAt : Instant
+    - recommendation : String
+    - tasks : List<WorkflowTask>
+  }
+
+  class WorkflowTask {
+    - id : UUID
+    - workflow : Workflow
+    - agentType : String
+    - objective : String
+    - status : TaskStatus
+    - executionOrder : Integer
+    - startedAt : Instant
+    - completedAt : Instant
+    - result : String
+    - errorMessage : String
+  }
+
+  class AgentExecution {
+    - id : UUID
+    - workflowTask : WorkflowTask
+    - agentType : String
+    - attempt : Integer
+    - status : AgentExecutionStatus
+    - input : String
+    - output : String
+    - model : String
+    - errorMessage : String
+    - startedAt : Instant
+    - completedAt : Instant
+  }
+
+  enum RequestStatus {
+    CREATED
+    PROCESSING
+    COMPLETED
+    FAILED
+    CANCELLED
+  }
+
+  enum WorkflowStatus {
+    CREATED
+    RUNNING
+    COMPLETED
+    FAILED
+    CANCELLED
+  }
+
+  enum TaskStatus {
+    PENDING
+    RUNNING
+    COMPLETED
+    FAILED
+    CANCELLED
+  }
+
+  enum AgentExecutionStatus {
+    PENDING
+    RUNNING
+    COMPLETED
+    FAILED
+    CANCELLED
+  }
+}
+
+package "repositories" {
+  interface RequestRepository
+  interface WorkflowRepository
+  interface WorkflowTaskRepository
+  interface AgentExecutionRepository
+}
+
+package "dtos" {
+  class CreateRequestDTO {
+    - objective : String
+  }
+
+  class RequestResponseDTO {
+    - id : UUID
+    - userId : UUID
+    - objective : String
+    - status : RequestStatus
+    - createdAt : Instant
+    - updatedAt : Instant
+  }
+
+  class WorkflowResponseDTO {
+    - id : UUID
+    - requestId : UUID
+    - status : WorkflowStatus
+    - createdAt : Instant
+    - updatedAt : Instant
+    - tasks : List<WorkflowTaskResponseDTO>
+    - recommendation : CEORecommendationResponseDTO
+  }
+
+  class WorkflowTaskResponseDTO {
+    - id : UUID
+    - agentType : String
+    - objective : String
+    - status : TaskStatus
+    - executionOrder : Integer
+    - startedAt : Instant
+    - completedAt : Instant
+    - result : String
+    - errorMessage : String
+  }
+
+  class CEORecommendationResponseDTO {
+    - recommendation : String
+    - keyFindings : Map
+    - assumptions : List<String>
+    - risks : List<String>
+    - nextSteps : List<String>
+  }
+
+  class ErrorResponseDTO
+  class ValidationErrorResponseDTO
+}
+
+package "exceptions" {
+  class BadRequestException
+  class ResourceNotFoundException
+  class GlobalExceptionHandler
+}
+
+' Controller to service
+RequestController --> RequestService
+WorkflowController --> WorkflowService
+
+' Service to persistence
+RequestService --> RequestRepository
+WorkflowService --> RequestRepository
+WorkflowService --> WorkflowRepository
+WorkflowService --> WorkflowTaskRepository
+WorkflowService --> AgentExecutionRepository
+
+' Service to orchestration
+WorkflowService --> CEOPlanner
+WorkflowService --> WorkflowEngine
+WorkflowService --> CEOSynthesizer
+
+' Agents
+Agent <|.. CEOAgent
+Agent <|.. CFOAgent
+Agent <|.. EngineeringAgent
+Agent <|.. InfrastructureAgent
+
+CEOAgent --> AiModelGateway
+CFOAgent --> AiModelGateway
+EngineeringAgent --> AiModelGateway
+InfrastructureAgent --> AiModelGateway
+
+CEOPlanner --> AiModelGateway
+CEOPlanner --> ExecutionPlanBuilder
+CEOSynthesizer --> AiModelGateway
+AgentRegistry --> Agent
+
+' AI
+AiModelGateway <|.. AiModelGatewayImpl
+AiModelGatewayImpl --> ModelRouter
+AiModelGatewayImpl --> ToolRegistry
+ModelRouter --> AgentConfig
+AgentConfig *-- AgentSettings
+
+' Workflow
+ExecutionPlan *-- AgentTask
+ExecutionPlanBuilder --> PlannedTask
+ExecutionPlanBuilder --> AgentTask
+WorkflowEngine --> TaskDependencyResolver
+WorkflowEngine --> WorkflowTaskDispatcher
+WorkflowEngine --> TaskContextBuilder
+WorkflowEngine --> WorkflowResult
+WorkflowTaskDispatcher --> AgentRegistry
+TaskContextBuilder --> AgentContext
+TaskContextBuilder --> AgentResult
+
+' Tools
+ToolConfiguration --> FinancialCalculatorTool
+ToolRegistry --> FinancialCalculatorTool
+
+' Persistence
+Request "1" -- "1" Workflow
+Workflow "1" *-- "many" WorkflowTask
+WorkflowTask "1" *-- "many" AgentExecution
+
+' DTOs
+WorkflowResponseDTO --> WorkflowTaskResponseDTO
+WorkflowResponseDTO --> CEORecommendationResponseDTO
+RequestResponseDTO --> RequestStatus
+WorkflowResponseDTO --> WorkflowStatus
+WorkflowTaskResponseDTO --> TaskStatus
+
+@enduml

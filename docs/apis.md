@@ -1,239 +1,138 @@
 # FoundryAI — API Design
 
-> **Status:** Updated 2026-09-08  
-> **REST implementation:** Not yet implemented.
+> **Status:** Ground-truth update — 2026-09-16
+> **REST:** Implemented for the current MVP workflow/request path.
 
 ## 1. Purpose
 
-The API should expose application resources, not concrete agent implementation details.
+The REST layer exposes application resources and workflow outcomes. Concrete agent implementation classes are not API resources.
 
-The runtime currently exists beneath the future REST layer.
-
-## 2. Principles
-
-- RESTful resource design
-- asynchronous workflow execution
-- typed request/response models
-- explicit errors
-- idempotency for side effects
-- authentication/authorization
-- correlation IDs
-- versioned APIs
-
-Base path:
+## 2. Current Controller Layer
 
 ```text
-/api/v1
+controllers/
+├── RequestController.java
+├── WorkflowController.java
+└── ApprovalController.java
 ```
 
-## 3. Controllers
+`ApprovalController` exists as a future-facing boundary; approval enforcement itself is not implemented.
 
-Planned:
+## 3. Current Request Flow
+
+The current implementation supports request creation/retrieval and workflow execution through the service layer.
+
+The demonstrated execution endpoint is:
+
+```http
+POST /api/workflows/requests/{requestId}/execute
+```
+
+The endpoint executes the workflow for an existing request and returns the resulting workflow representation.
+
+The current working Postman test returned:
 
 ```text
-RequestController
-WorkflowController
-ApprovalController
+status: COMPLETED
+recommendation: populated
+tasks: populated
 ```
 
-Never create per-agent controllers.
+with successful CFO, Engineering, and Infrastructure execution.
 
-## 4. Request API
+## 4. Request DTO Boundary
 
-```http
-POST /api/v1/requests
-GET  /api/v1/requests/{requestId}
-```
-
-Example:
-
-```json
-{
-  "objective": "Launch reconciliation in 8 weeks within our financial constraints."
-}
-```
-
-The eventual create operation should return quickly and allow the workflow to run asynchronously.
-
-Conceptual response:
-
-```http
-202 Accepted
-```
-
-```json
-{
-  "requestId": "...",
-  "workflowId": "...",
-  "status": "PROCESSING"
-}
-```
-
-## 5. Workflow API
-
-```http
-GET  /api/v1/workflows/{workflowId}
-GET  /api/v1/workflows/{workflowId}/tasks
-POST /api/v1/workflows/{workflowId}/cancel
-```
-
-The API exposes durable workflow state without leaking runtime implementation details.
-
-## 6. Plan API
-
-Future:
-
-```http
-GET /api/v1/workflows/{workflowId}/plan
-```
-
-Map `ExecutionPlan` to a DTO. Never expose the runtime object directly.
-
-## 7. Approval API
-
-Future:
-
-```http
-GET  /api/v1/approvals?status=PENDING
-GET  /api/v1/approvals/{approvalId}
-POST /api/v1/approvals/{approvalId}/approve
-POST /api/v1/approvals/{approvalId}/reject
-```
-
-Server-side authorization must be re-checked.
-
-## 8. Audit API
-
-Future:
-
-```http
-GET /api/v1/workflows/{workflowId}/events
-```
-
-Potential events:
-
-```text
-REQUEST_CREATED
-PLAN_CREATED
-TASK_STARTED
-AGENT_STARTED
-TOOL_INVOKED
-TOOL_COMPLETED
-APPROVAL_REQUIRED
-APPROVAL_GRANTED
-ACTION_EXECUTED
-WORKFLOW_COMPLETED
-WORKFLOW_FAILED
-```
-
-## 9. DTO Boundary
-
-Current DTOs:
+Current DTOs include:
 
 ```text
 CreateRequestDTO
-ErrorResponseDTO
 RequestResponseDTO
-ValidationErrorResponseDTO
 WorkflowResponseDTO
 WorkflowTaskResponseDTO
+CEORecommendationResponseDTO
+ErrorResponseDTO
+ValidationErrorResponseDTO
 ```
 
-Runtime objects remain internal:
+The REST layer does not expose runtime `AgentTask`, `AgentContext`, or `ExecutionPlan` objects directly.
+
+`CreateRequestDTO` validates the request objective using Jakarta validation annotations.
+
+## 5. Workflow Response
+
+The current `WorkflowResponseDTO` represents:
 
 ```text
-AgentTask
-AgentContext
-AgentResult
-PlannedTask
-ExecutionPlan
+workflow id
+request id
+workflow status
+createdAt
+updatedAt
+tasks
+CEO recommendation
 ```
 
-Anything crossing REST gets a DTO.
-
-## 10. Authentication Boundary
-
-Authentication is future work.
-
-The server should derive:
+The recommendation is represented by:
 
 ```text
-userId
-roles
-organization/tenant
-permissions
+CEORecommendationResponseDTO
 ```
 
-Never trust those values from JSON.
-
-## 11. HTTP Statuses
+with:
 
 ```text
-200 OK
-201 Created
-202 Accepted
-400 Bad Request
-401 Unauthorized
-403 Forbidden
-404 Not Found
-409 Conflict
-422 Unprocessable Entity
-429 Too Many Requests
-500 Internal Server Error
-503 Service Unavailable
+recommendation
+keyFindings
+assumptions
+risks
+nextSteps
 ```
 
-## 12. Idempotency
+## 6. Workflow Task Response
 
-Eventually support:
-
-```http
-Idempotency-Key: <key>
-```
-
-for workflow creation, approval actions, and external side-effecting tools.
-
-## 13. Correlation IDs
-
-Future propagation:
+A workflow task response contains:
 
 ```text
-request
- ↓
-workflow
- ↓
-agent execution
- ↓
-tool execution
- ↓
-logs
- ↓
-audit
+id
+agentType
+objective
+status
+executionOrder
+startedAt
+completedAt
+result
+errorMessage
 ```
 
-## 14. API Evolution
+## 7. Error Handling
 
-Prefer:
-
-```http
-POST /requests
-GET /workflows/{id}
-```
-
-over:
-
-```http
-POST /ceo-agent/run
-```
-
-This keeps the public API independent of internal agent implementation.
-
-## 15. Initial Public Surface
+Application exceptions include:
 
 ```text
-POST   /api/v1/requests
-GET    /api/v1/requests/{id}
-GET    /api/v1/workflows/{id}
-GET    /api/v1/workflows/{id}/tasks
-POST   /api/v1/workflows/{id}/cancel
+BadRequestException
+ResourceNotFoundException
 ```
+
+`GlobalExceptionHandler` translates application and validation errors into typed error DTOs.
+
+## 8. API Design Direction
+
+The broader target remains resource-oriented and versionable, with future support for:
+
+```text
+request retrieval
+workflow retrieval
+task retrieval
+workflow cancellation
+plan retrieval
+approval operations
+audit/event retrieval
+```
+
+The current code should be treated as the source of truth for which endpoints are actually exposed; future endpoint lists are design direction, not implemented capability.
+
+## 9. Authentication
+
+Authentication and server-side authorization are not implemented in the current MVP.
+
+User/role/tenant identity must not be trusted from arbitrary JSON fields when authentication is introduced.

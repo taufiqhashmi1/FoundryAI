@@ -40,4 +40,7 @@ public class Workflow {
             orphanRemoval = true
     )
     private List<WorkflowTask> tasks = new ArrayList<>();
+
+    @Column(columnDefinition = "TEXT")
+    private String recommendation;
 }
